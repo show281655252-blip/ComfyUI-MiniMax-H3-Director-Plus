@@ -4,7 +4,40 @@ MiniMax H3 Director에 장면 타임라인, 장면별 승인, Motion Context 연
 
 **현재 버전: 0.1.0-rc1 — 버전 고정 패치 배포 후보.** 독립 커스텀 노드가 아니며, 원본 업데이트와 무관하게 동작하는 완성 배포판이 아닙니다.
 
-## 다운로드
+## Git clone으로 설치
+
+먼저 아래 의존성 버전과 모델을 준비하고 ComfyUI를 종료하세요. **Portable 폴더 안에서** 다음 명령을 실행합니다. 이 폴더는 `ComfyUI`와 `python_embeded`가 함께 있는 위치입니다.
+
+```powershell
+git clone https://github.com/show281655252-blip/ComfyUI-MiniMax-H3-Director-Plus.git
+cd ComfyUI-MiniMax-H3-Director-Plus
+.\install_windows.bat
+```
+
+ZIP은 자동으로 검증·해제되며, 설치가 성공하면 저장소의 `workflows/Director_Long_Video_HyperFlow.json`이 준비됩니다. Windows 실행 파일을 더블클릭해도 됩니다.
+
+일반 Python/venv 설치에서는 ComfyUI용 Python을 활성화한 뒤 아래처럼 실행합니다. 경로는 자신의 환경에 맞게 바꾸세요.
+
+```powershell
+python install.py check --comfy "D:\ComfyUI_windows_portable\ComfyUI"
+python install.py install --comfy "D:\ComfyUI_windows_portable\ComfyUI"
+```
+
+`git clone`만으로 모델이나 원본 커스텀 노드가 자동 설치되지는 않습니다. 이 저장소는 `custom_nodes`에 넣어 자동 로드하는 독립 노드가 아닙니다. `git pull`은 배포 파일만 업데이트하며 패치는 다시 검사·설치해야 합니다.
+
+## 필요한 원본 버전
+
+각 원본 저장소의 설치 안내에 따라 Python 의존성을 설치하고 아래 커밋을 사용하세요. 모델 파일도 별도로 필요합니다.
+
+| 저장소 | 커밋 |
+| --- | --- |
+| ComfyUI-DaSiWa-Nodes 0.4.49 | `f864613b687192b2000fdc5164402dd8e3fc60bc` |
+| ComfyUI_MiniMax_H3_Extender | `939f773d55006f2200063696cd6e221cd82b4771` |
+| ComfyUI-Hyperflow | `b4bd9cf7ea3625ad4ffdc994608a2d736b10e890` |
+
+기존에 수정한 커스텀 노드가 있으면 먼저 백업하세요. 설치 도구는 일치하지 않는 버전을 덮어쓰지 않습니다.
+
+## 수동 다운로드
 
 - [배포 패키지 ZIP](MiniMax-Director-Distribution-0.1.0-rc1.zip)
 - [SHA-256 체크섬](MiniMax-Director-Distribution-0.1.0-rc1.zip.sha256)

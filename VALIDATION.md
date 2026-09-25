@@ -1,5 +1,11 @@
 # Validation — 2026-09-26
 
+Git-clone installer update:
+
+- Four wrapper tests passed: portable-folder detection, corrupt ZIP refusal, archive path traversal refusal, valid extraction.
+- On the isolated pinned-source installation, `install.py` rollback, check, clean nine-file installation, idempotent check and example workflow export passed.
+- The wrapper uses the existing ComfyUI Python and bundled archive; it does not download models or dependencies. The Windows launcher targets the documented Portable folder layout; double-click execution was not separately automated.
+
 Passed:
 
 - Seven installer tests: install/byte-exact rollback, idempotency, unknown upstream refusal, damaged payload refusal, post-install edit protection, damaged backup refusal, path containment and CRLF/LF handling.
