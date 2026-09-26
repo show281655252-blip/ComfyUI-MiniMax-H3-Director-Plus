@@ -415,7 +415,12 @@ export function renderLongVideo(node, state, emit) {
       box.onchange = async () => {
         if (rt.busy || rt.running) return;
         rt.busy = true;
-        try { await setValidated(i, box.checked); rt.message = ""; } catch (e) { rt.message = e.message; }
+        try {
+          await setValidated(i, box.checked);
+          // Like the Extender, approving hands focus to the next clip.
+          if (box.checked && i + 1 < s.clips.length) rt.selected = i + 1;
+          rt.message = "";
+        } catch (e) { rt.message = e.message; }
         finally { rt.busy = false; save(); refresh(); }
       };
     } else {
@@ -519,27 +524,6 @@ export function renderLongVideo(node, state, emit) {
     button(actions, "▶ 생성 / 실행", async () => { save(); await app.queuePrompt(0, 1); }).className = "dl-blue";
 
     button(actions, "다시 생성", async () => { await invalidate(rt.selected); save(); await app.queuePrompt(0, 1); });
-
-    const approve = button(actions, "승인하고 다음 장면", async () => {
-
-      await setValidated(rt.selected, true);
-
-      const hasNext = rt.selected < s.clips.length - 1;
-
-      if (!hasNext) s.clips.push(newClip());
-
-      rt.selected += 1;
-
-      save();
-
-
-
-    });
-
-    approve.className = "dl-green";
-    approve.disabled ||= !rt.cached.includes(current.id) || current.validated;
-
-    button(actions, "승인 해제 / 편집", () => invalidate(rt.selected));
 
     button(actions, "장면 삭제", async () => { if (s.clips.length < 2) return; await invalidate(rt.selected); s.clips.splice(rt.selected, 1); });
 
