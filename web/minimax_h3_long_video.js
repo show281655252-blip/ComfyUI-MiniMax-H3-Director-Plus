@@ -393,19 +393,27 @@ export function renderLongVideo(node, state, emit) {
   element("span", null, title).className = "dl-spacer";
   button(title, "+ 장면 추가", () => { s.clips.push(newClip()); rt.selected = s.clips.length - 1; });
 
-  button(title, "캐시 상태 확인", async () => {
-
-    if (!s.cache_owner) return;
-
-    const result = await request(`/director_plus/extender/cache_state?${new URLSearchParams({ owner_id: s.cache_owner, generation_mode: "ref2va", motion_context: "true" })}`);
-
-    const checked = reconcileSceneCache(s, result);
-    rt.cacheChecked = true; rt.cached = checked.cached; rt.needsRegeneration = checked.missing;
-  });
+  // A reopened workflow only knows its last preview; check the disk cache once so scene
+  // status and approvals match what can really be reused (runs and .ext loads already sync).
+  if (s.cache_owner && !rt.cacheChecked && !rt.cacheChecking && !rt.cacheCheckFailed) {
+    rt.cacheChecking = true;
+    const owner = s.cache_owner;
+    request(`/director_plus/extender/cache_state?${new URLSearchParams({ owner_id: owner, mode: "ref2va", motion_context: "true" })}`)
+      .then(result => {
+        // The node state is re-parsed while a workflow opens; reconcile whatever is current now.
+        const current = rt.state?.long_video;
+        if (!current || current.cache_owner !== owner) return;
+        const checked = reconcileSceneCache(current, result);
+        rt.cacheChecked = true; rt.cached = checked.cached; rt.needsRegeneration = checked.missing;
+        save(); refresh();
+      })
+      .catch(() => { rt.cacheCheckFailed = true; })
+      .finally(() => { rt.cacheChecking = false; });
+  }
 
   // Start the timeline over as a fresh project. Settings (ON/OFF, run mode, Motion Context)
   // are kept; the disk cache is left alone because other workflows may still use it.
-  const clearButton = button(title, "Clear", async () => {
+  const clearButton = button(title, "초기화", async () => {
     const approved = s.clips.filter(c => c.validated).length;
     if (!window.confirm(`장면 타임라인을 모두 지울까요?\n\n장면 ${s.clips.length}개(승인 ${approved}개)의 프롬프트·시드·길이·승인과 미리보기가 초기화되고 빈 장면 1개만 남습니다.\n저장한 .ext 프로젝트와 이미 만든 영상 파일은 그대로 남습니다.`)) return;
     s.project_id = crypto.randomUUID();
