@@ -339,7 +339,10 @@ class DirectorPlusTimeline:
                         for item in refmod_items if item["description"]]
         if descriptions:
             resolved += "\n\nReference descriptions:\n" + "\n".join(descriptions)
-        for issue in validate_builder_state(merged):
+        # The builder fields are unused when an external prompt drives the node; checking them
+        # only produced false "REF2VA summary is empty" warnings.
+        external_used = isinstance(external_prompt_overwrite, str) and bool(external_prompt_overwrite.strip())
+        for issue in ([] if external_used else validate_builder_state(merged)):
             log_dasiwa("MiniMax H3 Director", f"[{issue['level'].upper()}] {issue['msg']}")
         guide = {
             "version": 2, "mode": mode, "prompt": prompt, "prompt_blocks": blocks, "resolved_prompt": resolved,
