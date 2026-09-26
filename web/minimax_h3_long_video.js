@@ -74,12 +74,12 @@ function installStyle() {
   .dp-h3 .dl-panel textarea{width:100%;min-height:100px;resize:vertical}
   .dp-h3 .dl-panel .dl-strip{position:relative}
   .dp-h3 .dl-panel .dl-cards{display:flex;gap:12px;overflow-x:auto;overflow-y:hidden;padding:3px 3px 12px;scroll-snap-type:x proximity;scrollbar-gutter:stable}
-  .dp-h3 .dl-panel .dl-card{flex:0 0 318px;width:318px;min-height:520px;border:1px solid #466071;border-radius:9px;background:#14222b;padding:10px;display:flex;flex-direction:column;gap:8px;scroll-snap-align:start;cursor:pointer}
+  .dp-h3 .dl-panel .dl-card{flex:0 0 480px;width:480px;min-height:900px;border:1px solid #466071;border-radius:9px;background:#14222b;padding:9px;display:flex;flex-direction:column;gap:8px;scroll-snap-align:start;cursor:pointer}
   .dp-h3 .dl-panel .dl-card-title{font-size:15px}
   .dp-h3 .dl-panel .dl-next{color:#f7c35f;font-size:11px;font-weight:700;white-space:nowrap}
   .dp-h3 .dl-panel .dl-card-row{display:flex;align-items:center;gap:6px}
   .dp-h3 .dl-panel .dl-label{color:#9fb6c5;font-size:12px;font-weight:600}
-  .dp-h3 .dl-panel textarea.dl-card-prompt{flex:1 1 auto;min-height:200px;font-size:12px!important;line-height:1.45;cursor:text}
+  .dp-h3 .dl-panel textarea.dl-card-prompt{flex:1 1 auto;min-height:420px;font-size:12px!important;line-height:1.45;cursor:text}
   .dp-h3 .dl-panel .dl-card-grid{display:grid;grid-template-columns:1fr 38px 84px;gap:6px;align-items:end}
   .dp-h3 .dl-panel .dl-field{display:flex;flex-direction:column;gap:3px;min-width:0}
   .dp-h3 .dl-panel .dl-field input{width:100%!important;padding:6px 8px!important;font-size:13px!important}
@@ -91,7 +91,7 @@ function installStyle() {
   .dp-h3 .dl-panel button.dl-nav.prev{left:-6px}
   .dp-h3 .dl-panel button.dl-nav.next{right:-6px}
   .dp-h3 .dl-panel button.dl-nav:disabled{opacity:0;pointer-events:none}
-  .dp-h3 .dl-panel .dl-card.selected{border:2px solid #14c3f4;padding:9px;box-shadow:0 0 8px #12b9eb35}
+  .dp-h3 .dl-panel .dl-card.selected{border:2px solid #14c3f4;padding:8px;box-shadow:0 0 8px #12b9eb35}
   .dp-h3 .dl-panel .dl-card-head{display:flex;align-items:center;justify-content:space-between;gap:7px}
   .dp-h3 .dl-panel .dl-card-head button{background:transparent!important;border:0!important;padding:3px!important;text-align:left}
   .dp-h3 .dl-panel .dl-status{border:1px solid #526a7b;border-radius:99px;padding:5px 10px;color:#bacbd7;white-space:nowrap;font-size:12px}
@@ -103,7 +103,7 @@ function installStyle() {
   .dp-h3 .dl-panel .dl-validate.on{border-color:#327547;background:#103722;color:#82f595}
   .dp-h3 .dl-panel .dl-validate input{width:16px!important;height:16px!important;margin:0;padding:0!important;accent-color:#42c976;cursor:pointer}
   .dp-h3 .dl-panel .dl-validate:has(input:disabled){opacity:.5;cursor:default}
-  .dp-h3 .dl-panel .dl-preview{width:100%;height:170px;flex:0 0 170px;object-fit:contain;background:#0b151c;border-radius:6px;border:1px solid #293e48}
+  .dp-h3 .dl-panel .dl-preview{width:100%;height:380px;flex:0 0 380px;object-fit:contain;background:#0b151c;border-radius:6px;border:1px solid #293e48}
   .dp-h3 .dl-panel .dl-empty{display:flex;align-items:center;justify-content:center;color:#80919d;font-size:14px}
   .dp-h3 .dl-panel .dl-muted{color:#adc0ce;font-size:12px}
   .dp-h3 .dl-panel strong{font-size:17px}
@@ -408,7 +408,7 @@ export function renderLongVideo(node, state, emit) {
   // Extender-style strip: fixed-width tall cards side by side, each with its own editor.
   const strip = element("div", null, timeline); strip.className = "dl-strip";
   const cards = element("div", null, strip); cards.className = "dl-cards";
-  const CARD_STEP = 330;
+  const CARD_STEP = 492;
   let syncNav = () => {};
   const settle = () => { rt.scrollLeft = cards.scrollLeft; syncNav(); };
   // Own easing instead of native smooth scrolling, which stalls in some embedded views.
