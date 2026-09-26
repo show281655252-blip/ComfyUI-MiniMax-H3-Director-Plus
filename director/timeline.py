@@ -13,7 +13,7 @@ from .helper_minimax_h3_director import (
     scale_input_media, validate_reference_limits,
 )
 from .helper_minimax_h3_prompt_builder import (
-    build_prompt, default_builder_state, migrate_legacy_prompt, normalize_ref_schema,
+    build_prompt, default_builder_state, has_builder_content, migrate_legacy_prompt, normalize_ref_schema,
     validate_builder_state,
 )
 
@@ -159,6 +159,13 @@ class DirectorPlusTimeline:
                 raise ValueError("builder_state must be JSON text")
         if mode not in BASE_MODES | {"REF2VA", "Image Inpaint"}:
             raise ValueError(f"unsupported MiniMax Director mode: {mode}")
+        # H3 Forge unloads its LLM after every request; this is the backstop for
+        # one that was cut off, so it never shares VRAM with the video model.
+        try:
+            from .h3_forge import unload_forge_models
+            unload_forge_models()
+        except Exception as exc:
+            log_dasiwa("H3 Forge", f"backstop unload skipped: {exc}")
         # A non-numeric frame_rate (e.g. a stale 9th widgets_value shifted in by an
         # older save, or an empty string) falls back to the default instead of crashing
         # the queue; genuinely out-of-range numbers still raise.
@@ -197,6 +204,11 @@ class DirectorPlusTimeline:
         merged["mode"] = mode
         merged["duration"] = duration
         migrated_legacy_prompt = migrate_legacy_prompt(merged, state, prompt)
+        if "simple_prompt" not in merged and not has_builder_content(merged):
+            # New empty nodes execute with an empty prompt; the old builder
+            # format continues to render its original style in API workflows.
+            merged["prompt_mode"] = "simple"
+            merged["simple_prompt"] = ""
 
         items = sorted(enumerate(state.get("items", [])), key=lambda pair: (int(pair[1].get("order", pair[0])), pair[0]))
         items = [pair for pair in items if pair[1].get("enabled", True)]

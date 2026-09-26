@@ -1,4 +1,4 @@
-# MiniMax H3 Director Plus — 0.2.0a1 (alpha)
+# MiniMax H3 Director Plus — 0.2.0a2 (alpha)
 
 ComfyUI용 MiniMax H3 장면 타임라인·긴 영상(Ref2VA + Motion Context) 커스텀 노드입니다. 원본 DaSiWa·Extender 파일을 수정하지 않는 독립 노드이며, 필요한 원본 코드 일부를 라이선스 고지와 함께 내부에 포함합니다.
 
@@ -31,7 +31,7 @@ PyTorch/torchaudio를 다른 버전으로 교체하지 말고 ComfyUI 배포본�
 
 ## 노드
 
-- **MiniMax H3 Director Plus**: 레퍼런스·장면 타임라인·프롬프트·시드 관리
+- **MiniMax H3 Director Plus**: 레퍼런스·장면 타임라인·프롬프트(단일 편집기 + Prompt Forge)·시드 관리
 - **Director Plus · Generate**: Motion Context와 HyperFlow SIGMAS로 장면 생성
 - **Director Plus · Video Output**: 영상 저장 및 미리보기
 
@@ -45,6 +45,14 @@ PyTorch/torchaudio를 다른 버전으로 교체하지 말고 ComfyUI 배포본�
 기존 영상 파일 뒤에 이어 붙이는 기능은 제공하지 않습니다(처음부터 생성한 장면끼리 이어갑니다).
 
 캐시 위치: `ComfyUI/user/director_plus/cache` (원본 Extender 캐시와 분리)
+
+### Prompt Forge (선택)
+
+프롬프트 도구 모음의 **Prompt Forge**로 아이디어 한두 문장에서 H3 프롬프트 초안을 LLM으로 작성할 수 있습니다. 초안을 확인한 뒤 **Apply to node**를 눌러야 프롬프트에 들어가며, 최근 3개 초안은 노드와 함께 워크플로우에 저장됩니다.
+
+- 모델: `ComfyUI/models/llm`의 로컬 모델, Ollama(기본 `127.0.0.1:11434`), 또는 OpenAI 호환 서버. 서버 주소는 **Settings → Director Plus → H3 Forge**에서 지정합니다.
+- 생성이 끝나면 LLM을 메모리에서 내린 뒤 영상 생성을 시작하므로 LLM과 영상 모델이 VRAM에 함께 올라가지 않습니다.
+- 원본 DaSiWa의 Prompt Forge와는 API 경로·설정·저장 키가 분리되어 함께 설치해도 서로 간섭하지 않습니다.
 
 ## 기존 워크플로우 변환
 

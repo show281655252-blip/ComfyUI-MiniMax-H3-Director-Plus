@@ -1,5 +1,5 @@
 {
-  "dasiwa_revision": "f864613b687192b2000fdc5164402dd8e3fc60bc",
+  "dasiwa_revision": "0440994b5d2bd0ae0f3552639c103db121fd1b85",
   "extender_revision": "939f773d55006f2200063696cd6e221cd82b4771",
   "files": [
     {
@@ -12,7 +12,7 @@
     },
     {
       "file": "director/helper_minimax_h3_prompt_builder.py",
-      "upstream_sha256": "409b1613dbba973234bc0a28ac6c799e3b61addc7a2b8d8cb467f4ad96dafe9f"
+      "upstream_sha256": "bf20b5ba375e47a19545f472496b4b3ec38330f05495054b26fe52d40c093568"
     },
     {
       "file": "director/helper_refmod_format.py",
@@ -36,7 +36,7 @@
     },
     {
       "file": "director/timeline.py",
-      "upstream_sha256": "31f31987c5e1d9cbab3411ea915c582986701bc3b04ff32353205405e49d85c6"
+      "upstream_sha256": "a106407958f080f034963db00ad6e16cbf31c8de7d8f84e81dd8bd2434af121f"
     },
     {
       "file": "engine/extender.py",
@@ -84,7 +84,7 @@
     },
     {
       "file": "web/minimax_h3_director.js",
-      "upstream_sha256": "f660216fd52f77075598e31e1c32f9369e51ba98d78f8f20ca32f0576ed4cf33"
+      "upstream_sha256": "0c9f8a360a5cb79ca7fe010fa4a8bf68178b18b4c912a519c84eb04ca14cc933"
     },
     {
       "file": "web/minimax_h3_long_video.js",
@@ -93,6 +93,23 @@
     {
       "file": "web/enhanced_video_combine_preview.js",
       "upstream_sha256": "70ed5daef9adb17576f91943bcdfce3c0d7c6d764f4cde36a2026a5751d33651"
+    },
+    {
+      "file": "director/h3_forge.py",
+      "upstream_sha256": "7abd3e7de4eb108235b939162b771da835d61aac7961b46e3912c1895c9440fa"
+    },
+    {
+      "file": "director/nodes_llm.py",
+      "upstream_sha256": "c656bf7139419117afc4da28d88dfa33616981090c1a6c38be2f77ab9558afb9"
+    },
+    {
+      "file": "web/minimax_h3_forge.js",
+      "upstream_sha256": "d9425ee61b1a80997ff1147126a43a5a810f50a44432ad0befe97c43c80a8466"
+    },
+    {
+      "file": "data/h3_forge.json",
+      "upstream_sha256": "6c3e8bde41dc13e73adfd2c92973e5c824b1d8b4c91dd23069c22d747049132d"
     }
-  ]
+  ],
+  "dasiwa_version": "0.4.57"
 }

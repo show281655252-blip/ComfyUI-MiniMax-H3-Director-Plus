@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-minimax-h3-director-plus"
-version = "0.2.0a1"
+version = "0.2.0a2"
 description = "Standalone MiniMax H3 scene timeline and Motion Context generation for ComfyUI"
 license = {file = "LICENSE"}
 requires-python = ">=3.10"
