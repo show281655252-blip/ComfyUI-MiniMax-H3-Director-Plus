@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+cache/
+*.ext
+*.mp4
+*.h3cache
+*.bak
+.env*

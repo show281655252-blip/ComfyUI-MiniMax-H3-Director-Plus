@@ -1,0 +1,98 @@
+{
+  "dasiwa_revision": "f864613b687192b2000fdc5164402dd8e3fc60bc",
+  "extender_revision": "939f773d55006f2200063696cd6e221cd82b4771",
+  "files": [
+    {
+      "file": "director/helper_logging.py",
+      "upstream_sha256": "f1285d4c59f663164f391a2e9122dce4a001711fd71bd07069306d55594afd3c"
+    },
+    {
+      "file": "director/helper_minimax_h3_director.py",
+      "upstream_sha256": "e51e4b28492b7b81b7d2cc501b6fa1af8d348bbd38f4340d7a900cd44a154fc8"
+    },
+    {
+      "file": "director/helper_minimax_h3_prompt_builder.py",
+      "upstream_sha256": "409b1613dbba973234bc0a28ac6c799e3b61addc7a2b8d8cb467f4ad96dafe9f"
+    },
+    {
+      "file": "director/helper_refmod_format.py",
+      "upstream_sha256": "064fb4b7cd249abc95289aff4d82a252be55426cfc29faed4fb197b8808c3d07"
+    },
+    {
+      "file": "director/nodes_scaling.py",
+      "upstream_sha256": "ee8b573a163d8d59e414c3e9f863eb2c24d54055cef478f51334428547f85a8e"
+    },
+    {
+      "file": "director/nodes_enhanced_video_combine.py",
+      "upstream_sha256": "abf071c2fe25262afba7a19037fe6fdafbbaed86919f039ea43f9b5a63bafe37"
+    },
+    {
+      "file": "director/helper_pyav_video.py",
+      "upstream_sha256": "58b406da68834947390950509b097d824c6d83e43360b333ef543040b58719a4"
+    },
+    {
+      "file": "director/refmod_library.py",
+      "upstream_sha256": "1390b83757de1598b97c00f3d4353f9a3beda465d40d26a059df135cd1422a08"
+    },
+    {
+      "file": "director/timeline.py",
+      "upstream_sha256": "31f31987c5e1d9cbab3411ea915c582986701bc3b04ff32353205405e49d85c6"
+    },
+    {
+      "file": "engine/extender.py",
+      "upstream_sha256": "589096d934a1bccdd6d9917d77aa5b2296b132a6f6db970884c2c9fd66364fcc"
+    },
+    {
+      "file": "engine/fl2va_engine.py",
+      "upstream_sha256": "68ca9cfe6c1e615da807656af02abe7b189b9d9fe28eab3275ee8cd2a439f355"
+    },
+    {
+      "file": "engine/motion_context_disk.py",
+      "upstream_sha256": "45603d170191a6813ce36c308ce33acaec2694ab26dd812d1cd6d7897aeb14c1"
+    },
+    {
+      "file": "engine/motion_context_ram.py",
+      "upstream_sha256": "db2e588930de8031253a5487cf3490f1637203e59e693333925da8f431b75623"
+    },
+    {
+      "file": "engine/patch_motion_layout.py",
+      "upstream_sha256": "c3ad6ab20eb70eea94d965ec346f4def10187605d4fdbf3aca903bbf3da96869"
+    },
+    {
+      "file": "engine/patch_motion_payload.py",
+      "upstream_sha256": "afcfd6457b39e7756f9d8b146cfa5c107e3c07defd3de1593c9ab3f434fe8d1f"
+    },
+    {
+      "file": "engine/prompt_bridge.py",
+      "upstream_sha256": "f525e8d893636ff59894652d06ad4334668305dc34bdd1826c00f6601389b259"
+    },
+    {
+      "file": "engine/ref2va_independent.py",
+      "upstream_sha256": "040b203b776483f6bad19abfabe1c2731d763921dcdb67a59fd37b3975aa1c76"
+    },
+    {
+      "file": "engine/reference_bridge.py",
+      "upstream_sha256": "dce6df3963da1fbb07dcc5146811d6736e4f6452604808b3ee62fbf6d2795fe7"
+    },
+    {
+      "file": "engine/director_long.py",
+      "upstream_sha256": "66e0ffbb039d613ef1c3b5f55814524a128e26e85a77e53f7c8a762cdec23b9b"
+    },
+    {
+      "file": "engine/director_project.py",
+      "upstream_sha256": "4d1ceeb4398af38f540b26e69869da42287c01d29d6b3db39b380c770c4adcb9"
+    },
+    {
+      "file": "web/minimax_h3_director.js",
+      "upstream_sha256": "f660216fd52f77075598e31e1c32f9369e51ba98d78f8f20ca32f0576ed4cf33"
+    },
+    {
+      "file": "web/minimax_h3_long_video.js",
+      "upstream_sha256": "61f2456e4f3e2ab0a21a56e6fbafc608e22d75bf8cc178e8398d95dae3bf9335"
+    },
+    {
+      "file": "web/enhanced_video_combine_preview.js",
+      "upstream_sha256": "70ed5daef9adb17576f91943bcdfce3c0d7c6d764f4cde36a2026a5751d33651"
+    }
+  ]
+}

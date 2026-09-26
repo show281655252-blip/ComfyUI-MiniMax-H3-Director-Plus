@@ -1,0 +1,920 @@
+{
+  "last_node_id": 9,
+  "last_link_id": 14,
+  "nodes": [
+    {
+      "type": "UNETLoader",
+      "size": [
+        620,
+        90
+      ],
+      "inputs": [
+        {
+          "name": "unet_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "unet_name"
+          },
+          "link": null
+        },
+        {
+          "name": "weight_dtype",
+          "type": "COMBO",
+          "widget": {
+            "name": "weight_dtype"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "widgets_values": [
+        "MiniMaxH3/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+        "default"
+      ],
+      "id": 1,
+      "pos": [
+        0,
+        0
+      ],
+      "order": 0,
+      "mode": 0,
+      "flags": {},
+      "properties": {
+        "Node name for S&R": "UNETLoader"
+      }
+    },
+    {
+      "type": "CLIPLoader",
+      "size": [
+        540,
+        120
+      ],
+      "inputs": [
+        {
+          "name": "clip_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "clip_name"
+          },
+          "link": null
+        },
+        {
+          "name": "type",
+          "type": "COMBO",
+          "widget": {
+            "name": "type"
+          },
+          "link": null
+        },
+        {
+          "name": "device",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "device"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            5
+          ]
+        }
+      ],
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "minimax",
+        "default"
+      ],
+      "id": 2,
+      "pos": [
+        500,
+        0
+      ],
+      "order": 1,
+      "mode": 0,
+      "flags": {},
+      "properties": {
+        "Node name for S&R": "CLIPLoader"
+      }
+    },
+    {
+      "type": "VAELoader",
+      "size": [
+        540,
+        70
+      ],
+      "inputs": [
+        {
+          "name": "vae_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "vae_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            6,
+            12
+          ]
+        }
+      ],
+      "widgets_values": [
+        "MiniMaxH3/minimax_h3_video_vae_fp16.safetensors"
+      ],
+      "id": 3,
+      "pos": [
+        1000,
+        0
+      ],
+      "order": 2,
+      "mode": 0,
+      "flags": {},
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      }
+    },
+    {
+      "type": "VAELoader",
+      "size": [
+        540,
+        70
+      ],
+      "inputs": [
+        {
+          "name": "vae_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "vae_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            7,
+            13
+          ]
+        }
+      ],
+      "widgets_values": [
+        "MiniMaxH3/minimax_h3_audio_vae_fp32.safetensors"
+      ],
+      "id": 4,
+      "pos": [
+        0,
+        450
+      ],
+      "order": 3,
+      "mode": 0,
+      "flags": {},
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      }
+    },
+    {
+      "type": "ApplyHyperFlow",
+      "size": [
+        554.0722005208335,
+        198
+      ],
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        },
+        {
+          "name": "hyperflow_file",
+          "type": "COMBO",
+          "widget": {
+            "name": "hyperflow_file"
+          },
+          "link": null
+        },
+        {
+          "name": "strength",
+          "type": "FLOAT",
+          "widget": {
+            "name": "strength"
+          },
+          "link": null
+        },
+        {
+          "name": "lora_mode",
+          "type": "COMBO",
+          "widget": {
+            "name": "lora_mode"
+          },
+          "link": null
+        },
+        {
+          "name": "variant",
+          "type": "COMBO",
+          "widget": {
+            "name": "variant"
+          },
+          "link": null
+        },
+        {
+          "name": "download_if_missing",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "download_if_missing"
+          },
+          "link": null
+        },
+        {
+          "name": "verbose",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "verbose"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            2
+          ]
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "links": [
+            8
+          ]
+        }
+      ],
+      "widgets_values": [
+        "custom_node_hyperflow_8step_v1.0_comfyui_pruned.safetensors",
+        1.0,
+        "bypass",
+        "auto",
+        false,
+        false
+      ],
+      "id": 5,
+      "pos": [
+        500,
+        450
+      ],
+      "order": 4,
+      "mode": 0,
+      "flags": {},
+      "properties": {
+        "Node name for S&R": "ApplyHyperFlow"
+      }
+    },
+    {
+      "type": "DirectorPlusTimeline",
+      "size": [
+        1386.7745344860286,
+        2528
+      ],
+      "inputs": [
+        {
+          "name": "fl2va_model",
+          "shape": 7,
+          "type": "MODEL",
+          "link": null
+        },
+        {
+          "name": "ref2va_model",
+          "shape": 7,
+          "type": "MODEL",
+          "link": 2
+        },
+        {
+          "name": "external_width_overwrite",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        },
+        {
+          "name": "external_height_overwrite",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        },
+        {
+          "name": "external_prompt_overwrite",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "name": "mode",
+          "type": "COMBO",
+          "widget": {
+            "name": "mode"
+          },
+          "link": null
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": null
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": null
+        },
+        {
+          "name": "duration",
+          "type": "INT",
+          "widget": {
+            "name": "duration"
+          },
+          "link": null
+        },
+        {
+          "name": "ref_image_size",
+          "type": "COMBO",
+          "widget": {
+            "name": "ref_image_size"
+          },
+          "link": null
+        },
+        {
+          "name": "timeline_data",
+          "type": "STRING",
+          "widget": {
+            "name": "timeline_data"
+          },
+          "link": null
+        },
+        {
+          "name": "builder_state",
+          "type": "STRING",
+          "widget": {
+            "name": "builder_state"
+          },
+          "link": null
+        },
+        {
+          "name": "frame_rate",
+          "type": "FLOAT",
+          "widget": {
+            "name": "frame_rate"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "guide",
+          "type": "MINIMAX_H3_DIRECTOR_GUIDE",
+          "links": [
+            3,
+            9
+          ]
+        },
+        {
+          "name": "duration",
+          "type": "INT",
+          "links": []
+        },
+        {
+          "name": "positive_prompt",
+          "type": "STRING",
+          "links": []
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": []
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": []
+        },
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "fl2va_requested",
+          "type": "BOOLEAN",
+          "links": []
+        },
+        {
+          "name": "inpaint_requested",
+          "type": "BOOLEAN",
+          "links": []
+        },
+        {
+          "name": "frame_rate",
+          "type": "FLOAT",
+          "links": [
+            10
+          ]
+        }
+      ],
+      "widgets_values": [
+        "REF2VA",
+        "",
+        704,
+        960,
+        5,
+        "match",
+        "{\"version\": 1, \"items\": [], \"prompt_blocks\": [], \"long_video\": {\"version\": 1, \"project_id\": \"19c167a0-bf9a-4259-a2ea-98727988eb6d\", \"enabled\": true, \"start_mode\": \"new\", \"source_mode_enabled\": false, \"run_mode\": \"clip_by_clip\", \"context_length\": \"22\", \"clips\": [{\"id\": \"example-scene-1\", \"name\": \"\", \"duration\": 5, \"seed\": 12345, \"seed_mode\": \"fixed\", \"prompt\": \"A paper sailboat floats gently across a calm pond. The camera follows slowly.\", \"use_external_prompt\": false, \"validated\": false, \"loras\": []}]}}",
+        "",
+        24.0
+      ],
+      "id": 6,
+      "pos": [
+        1000,
+        450
+      ],
+      "order": 5,
+      "mode": 0,
+      "flags": {},
+      "properties": {
+        "Node name for S&R": "DirectorPlusTimeline"
+      }
+    },
+    {
+      "type": "DirectorPlusGenerate",
+      "size": [
+        410,
+        200
+      ],
+      "inputs": [
+        {
+          "name": "guide",
+          "type": "MINIMAX_H3_DIRECTOR_GUIDE",
+          "link": 3
+        },
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 4
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 5
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 6
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 7
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 8
+        },
+        {
+          "name": "sampler_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "sampler_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "H3_MOTION_DISK_CACHE",
+          "type": "H3_MOTION_DISK_CACHE",
+          "links": [
+            11
+          ]
+        }
+      ],
+      "widgets_values": [
+        "euler"
+      ],
+      "id": 7,
+      "pos": [
+        0,
+        900
+      ],
+      "order": 6,
+      "mode": 0,
+      "flags": {},
+      "properties": {
+        "Node name for S&R": "DirectorPlusGenerate"
+      }
+    },
+    {
+      "type": "DirectorPlusVideoOutput",
+      "size": [
+        610,
+        1384.5454545454545
+      ],
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 14
+        },
+        {
+          "name": "director_guide",
+          "type": "MINIMAX_H3_DIRECTOR_GUIDE",
+          "link": 9
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "seed",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        },
+        {
+          "name": "long_cache",
+          "shape": 7,
+          "type": "H3_MOTION_DISK_CACHE",
+          "link": 11
+        },
+        {
+          "name": "video_vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": 12
+        },
+        {
+          "name": "audio_vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": 13
+        },
+        {
+          "name": "frame_rate",
+          "type": "FLOAT",
+          "widget": {
+            "name": "frame_rate"
+          },
+          "link": 10
+        },
+        {
+          "name": "codec",
+          "type": "COMBO",
+          "widget": {
+            "name": "codec"
+          },
+          "link": null
+        },
+        {
+          "name": "container",
+          "type": "COMBO",
+          "widget": {
+            "name": "container"
+          },
+          "link": null
+        },
+        {
+          "name": "bit_depth",
+          "type": "COMBO",
+          "widget": {
+            "name": "bit_depth"
+          },
+          "link": null
+        },
+        {
+          "name": "quality",
+          "type": "INT",
+          "widget": {
+            "name": "quality"
+          },
+          "link": null
+        },
+        {
+          "name": "log_level",
+          "type": "COMBO",
+          "widget": {
+            "name": "log_level"
+          },
+          "link": null
+        },
+        {
+          "name": "pingpong",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "pingpong"
+          },
+          "link": null
+        },
+        {
+          "name": "save_metadata",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "save_metadata"
+          },
+          "link": null
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        },
+        {
+          "name": "save_output",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "save_output"
+          },
+          "link": null
+        },
+        {
+          "name": "pass_frames",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "pass_frames"
+          },
+          "link": null
+        },
+        {
+          "name": "crop_to_audio",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "crop_to_audio"
+          },
+          "link": null
+        },
+        {
+          "name": "audio_codec",
+          "type": "COMBO",
+          "widget": {
+            "name": "audio_codec"
+          },
+          "link": null
+        },
+        {
+          "name": "audio_bitrate",
+          "type": "COMBO",
+          "widget": {
+            "name": "audio_bitrate"
+          },
+          "link": null
+        },
+        {
+          "name": "save_first_frame",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "save_first_frame"
+          },
+          "link": null
+        },
+        {
+          "name": "save_last_frame",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "save_last_frame"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "frames",
+          "type": "IMAGE",
+          "links": []
+        },
+        {
+          "name": "filename",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "widgets_values": [
+        24,
+        "H.264",
+        "MP4",
+        "8-bit",
+        21,
+        "Standard",
+        false,
+        false,
+        "video/director/%date:yyyy-MM-dd%/%date:hhmmss%",
+        true,
+        false,
+        false,
+        "AAC",
+        "192k",
+        false,
+        false
+      ],
+      "id": 8,
+      "pos": [
+        500,
+        900
+      ],
+      "order": 7,
+      "mode": 0,
+      "flags": {},
+      "properties": {
+        "Node name for S&R": "DirectorPlusVideoOutput"
+      }
+    },
+    {
+      "id": 9,
+      "type": "EmptyImage",
+      "pos": [
+        0,
+        1350
+      ],
+      "size": [
+        300,
+        150
+      ],
+      "order": 8,
+      "mode": 0,
+      "flags": {},
+      "properties": {
+        "Node name for S&R": "EmptyImage"
+      },
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            14
+          ]
+        }
+      ],
+      "widgets_values": [
+        704,
+        960,
+        1,
+        0
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      5,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      5,
+      0,
+      6,
+      1,
+      "MODEL"
+    ],
+    [
+      3,
+      6,
+      0,
+      7,
+      0,
+      "MINIMAX_H3_DIRECTOR_GUIDE"
+    ],
+    [
+      4,
+      6,
+      5,
+      7,
+      1,
+      "MODEL"
+    ],
+    [
+      5,
+      2,
+      0,
+      7,
+      2,
+      "CLIP"
+    ],
+    [
+      6,
+      3,
+      0,
+      7,
+      3,
+      "VAE"
+    ],
+    [
+      7,
+      4,
+      0,
+      7,
+      4,
+      "VAE"
+    ],
+    [
+      8,
+      5,
+      1,
+      7,
+      5,
+      "SIGMAS"
+    ],
+    [
+      9,
+      6,
+      0,
+      8,
+      1,
+      "MINIMAX_H3_DIRECTOR_GUIDE"
+    ],
+    [
+      10,
+      6,
+      8,
+      8,
+      7,
+      "FLOAT"
+    ],
+    [
+      11,
+      7,
+      0,
+      8,
+      4,
+      "H3_MOTION_DISK_CACHE"
+    ],
+    [
+      12,
+      3,
+      0,
+      8,
+      5,
+      "VAE"
+    ],
+    [
+      13,
+      4,
+      0,
+      8,
+      6,
+      "VAE"
+    ],
+    [
+      14,
+      9,
+      0,
+      8,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}

@@ -1,0 +1,656 @@
+// Modified for Director Plus isolation, 2026-09-26. See NOTICE.md for upstream attribution.
+import { app } from "../../scripts/app.js";
+
+import { api } from "../../scripts/api.js";
+
+function element(tag, text, parent) {
+
+  const el = document.createElement(tag);
+
+  if (text) el.textContent = text;
+
+  parent?.append(el);
+
+  return el;
+
+}
+
+function newClip() {
+
+  return { id: crypto.randomUUID(), name: "", prompt: "", use_external_prompt: true, duration: 5, seed: Math.floor(Math.random() * 1e12), seed_mode: "fixed", validated: false, loras: [] };
+
+}
+
+async function request(path, data) {
+
+  const response = await api.fetchApi(path, data ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) } : {});
+
+  const result = await response.json();
+
+  if (!response.ok || result.ok === false) throw new Error(result.error || response.statusText);
+
+  return result;
+
+}
+
+function reconcileSceneCache(settings, result) {
+  const cached = result.found === false ? [] : (result.cached_clip_ids || []);
+  const approved = new Set(result.validated_clip_ids || []);
+  const reusable = [], missing = [];
+  let prefixValid = true;
+  settings.clips.forEach((clip, index) => {
+    const exists = prefixValid && cached[index] === clip.id;
+    if (exists) reusable.push(clip.id); else missing.push(clip.id);
+    clip.validated = Boolean(exists && clip.validated && approved.has(clip.id));
+    prefixValid = clip.validated;
+  });
+  return { cached: reusable, missing };
+}
+
+function viewURL(item) {
+
+  return api.apiURL(`/view?${new URLSearchParams({ filename: item.filename, subfolder: item.subfolder || "", type: item.type || "output", ...(item.preview_revision ? { v: item.preview_revision } : {}) })}`);
+
+}
+
+function installStyle() {
+  if (document.getElementById("director-plus-long-style")) return;
+  const style = element("style"); style.id = "director-plus-long-style";
+  style.textContent = `
+  .dp-h3 .dl-panel{background:#304650;border:1px solid #526571;border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:10px;color:#e8f2fa;margin:8px 0;font:14px system-ui,sans-serif;box-sizing:border-box;flex-shrink:0}
+  .dp-h3 .dl-panel *{box-sizing:border-box}
+  .dp-h3 .dl-panel .dl-section{background:linear-gradient(110deg,#101c24,#142731);border:1px solid #263e4b;border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px}
+  .dp-h3 .dl-panel button,.dp-h3 .dl-panel a.dl-button{background:linear-gradient(#203542,#152530)!important;border:1px solid #4c6c80!important;color:#e8f2fa!important;border-radius:8px!important;padding:10px 16px!important;font:600 14px system-ui!important;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+  .dp-h3 .dl-panel button:disabled{opacity:.4;cursor:default}
+  .dp-h3 .dl-panel button:hover:not(:disabled){border-color:#59d4ff!important}
+  .dp-h3 .dl-panel button.dl-blue,.dp-h3 .dl-panel a.dl-blue{background:linear-gradient(#17446b,#165888)!important;border-color:#299eed!important}
+  .dp-h3 .dl-panel button.dl-green{background:linear-gradient(#185e3c,#167844)!important;border-color:#42c976!important}
+  .dp-h3 .dl-panel button.dl-toggle{border-radius:99px!important;padding:7px 12px!important;min-width:74px}
+  .dp-h3 .dl-panel button.dl-toggle[aria-pressed=true]{background:#136936!important;border-color:#79efa4!important;box-shadow:0 0 10px #36ce6650}
+  .dp-h3 .dl-panel button.dl-toggle:after{content:"";width:18px;height:18px;background:#abbac4;border-radius:50%}
+  .dp-h3 .dl-panel button.dl-toggle[aria-pressed=true]:after{background:#bbffd2;box-shadow:0 0 7px #61f994}
+  .dp-h3 .dl-panel input,.dp-h3 .dl-panel select,.dp-h3 .dl-panel textarea{background:#142630!important;color:#edf6fc!important;border:1px solid #425e70!important;border-radius:7px!important;padding:9px!important;font:14px system-ui!important}
+  .dp-h3 .dl-panel input:disabled,.dp-h3 .dl-panel textarea:disabled{opacity:.65}
+  .dp-h3 .dl-panel textarea{width:100%;min-height:100px;resize:vertical}
+  .dp-h3 .dl-panel .dl-cards{display:flex;gap:12px;overflow-x:auto;padding:3px}
+  .dp-h3 .dl-panel .dl-card{flex:1 0 240px;min-width:0;border:1px solid #466071;border-radius:9px;background:#14222b;padding:10px;display:flex;flex-direction:column;gap:9px}
+  .dp-h3 .dl-panel .dl-card.selected{border:2px solid #14c3f4;padding:9px;box-shadow:0 0 8px #12b9eb35}
+  .dp-h3 .dl-panel .dl-card-head{display:flex;align-items:center;justify-content:space-between;gap:7px}
+  .dp-h3 .dl-panel .dl-card-head button{background:transparent!important;border:0!important;padding:3px!important;text-align:left}
+  .dp-h3 .dl-panel .dl-status{border:1px solid #526a7b;border-radius:99px;padding:5px 10px;color:#bacbd7;white-space:nowrap;font-size:12px}
+  .dp-h3 .dl-panel .dl-status{display:inline-flex;align-items:center;gap:9px}
+  .dp-h3 .dl-panel .dl-pause-icon{display:inline-block;width:12px;height:14px;border-left:4px solid currentColor;border-right:4px solid currentColor;flex-shrink:0}
+  .dp-h3 .dl-panel .dl-status.approved{border-color:#327547;background:#103722;color:#82f595}
+  .dp-h3 .dl-panel .dl-status.review{border-color:#16bedf;background:#123b4b;color:#7feeff}
+  .dp-h3 .dl-panel .dl-preview{width:100%;height:320px;object-fit:contain;background:#0b151c;border-radius:6px;border:1px solid #293e48}
+  .dp-h3 .dl-panel .dl-empty{display:flex;align-items:center;justify-content:center;color:#80919d;font-size:14px}
+  .dp-h3 .dl-panel .dl-muted{color:#adc0ce;font-size:12px}
+  .dp-h3 .dl-panel strong{font-size:17px}
+  .dp-h3 .dl-panel .dl-spacer{flex:1}
+  `;
+  document.head.append(style);
+}
+
+export function renderLongVideo(node, state, emit) {
+  installStyle();
+
+  if (!state.long_video) state.long_video = { version: 1, project_id: crypto.randomUUID(), enabled: false, start_mode: "new", source_video: "", run_mode: "clip_by_clip", context_length: "22", clips: [newClip()] };
+
+  const rt = node.__directorLong || (node.__directorLong = { selected: 0, cached: [], busy: false, message: "" });
+
+  rt.state = state;
+
+  rt.emit = emit;
+
+  const s = state.long_video;
+  s.source_mode_enabled = false; s.start_mode = "new"; delete s.source_video;
+
+  const panel = element("section");
+
+  panel.className = "dl-panel";
+
+  const row = (parent = panel) => { const r = element("div", null, parent); r.style.cssText = "display:flex;align-items:center;flex-wrap:wrap;gap:8px"; return r; };
+
+  const section = () => { const el = element("div", null, panel); el.className = "dl-section"; return el; };
+  const refresh = () => node.__directorPlusH3Render?.();
+
+  const save = () => { emit(); node.graph?.setDirtyCanvas(true, true); };
+
+  const button = (parent, text, action) => {
+
+    const b = element("button", text, parent);
+
+    b.disabled = rt.busy || rt.running;
+
+    b.onclick = async () => {
+
+      if (rt.busy || rt.running) return;
+
+      rt.busy = true;
+
+      try { await action(); rt.message = ""; } catch (e) { rt.message = e.message; }
+
+      finally { rt.busy = false; save(); refresh(); }
+
+    };
+
+    return b;
+
+  };
+
+  const select = (parent, values, value, change) => {
+
+    const el = element("select", null, parent);
+
+    for (const [v, label] of values) { const opt = element("option", label, el); opt.value = v; }
+
+    el.value = value;
+
+    el.disabled = rt.busy || rt.running;
+
+    el.onchange = async () => { try { await change(el.value); save(); refresh(); } catch (e) { rt.message = e.message; refresh(); } };
+
+    return el;
+
+  };
+
+  const invalidate = async (index) => {
+
+    if (s.cache_owner) await request("/director_plus/extender/local_ref_invalidate", { owner_id: s.cache_owner, generation_mode: "ref2va", motion_context: true, clip_index: index, validated: false });
+
+    for (let i = index; i < s.clips.length; i++) s.clips[i].validated = false;
+
+    rt.cacheChecked = true;
+    rt.cached = rt.cached.filter(id => s.clips.findIndex(c => c.id === id) < index);
+
+  };
+
+  const top = row(section());
+
+  element("strong", "긴 영상 만들기", top);
+
+  const mainToggle = button(top, s.enabled ? "ON" : "OFF", () => {
+
+    s.enabled = !s.enabled;
+
+    if (s.enabled) {
+
+      const mode = node.widgets.find(w => w.name === "mode"); mode.value = "REF2VA";
+
+      const fps = node.widgets.find(w => w.name === "frame_rate"); fps.value = 24;
+
+    }
+
+  });
+
+  mainToggle.className = "dl-toggle"; mainToggle.setAttribute("aria-pressed", String(s.enabled));
+  element("span", "Ref2VA + Motion Context", top);
+  if (!s.enabled) return panel;
+
+  for (const [value, label] of [["clip_by_clip", "장면별 생성"], ["full_batch", "전체 생성"]]) {
+    const modeButton = button(top, label, () => { s.run_mode = value; });
+    if (s.run_mode === value) modeButton.className = "dl-blue";
+    modeButton.setAttribute("aria-pressed", String(s.run_mode === value));
+  }
+
+  element("span", "Motion Context", top);
+
+  select(top, ["5", "22", "39", "56"].map(v => [v, v]), s.context_length, async v => { await invalidate(0); s.context_length = v; });
+
+  element("small", "샘플러 / HyperFlow: Settings 설정 사용 · 24 fps", top);
+
+  if (s.source_mode_enabled !== false) {
+  const source = row();
+
+  select(source, [["new", "새 영상부터 시작"], ["video", "기존 영상 이어 만들기"]], s.start_mode, async v => { await invalidate(0); s.start_mode = v; });
+
+  if (s.start_mode === "video") {
+
+    const upload = element("input", null, source); upload.type = "file"; upload.accept = "video/*"; upload.style.display = "none";
+
+    const uploadFile = async file => {
+
+      if (!file || rt.busy || rt.running) return;
+
+      rt.busy = true;
+
+      try {
+
+        const body = new FormData(); body.append("image", file); body.append("type", "input"); body.append("subfolder", "director_sources");
+
+        const response = await api.fetchApi("/upload/image", { method: "POST", body });
+
+        if (!response.ok) throw new Error("원본 영상 업로드에 실패했습니다.");
+
+        const data = await response.json();
+
+        await invalidate(0);
+
+        s.source_video = data.subfolder ? `${data.subfolder}/${data.name}` : data.name;
+
+        rt.preview = null;
+
+        rt.message = "";
+
+      } catch (e) { rt.message = e.message; }
+
+      finally { rt.busy = false; save(); refresh(); }
+
+    };
+
+    upload.onchange = () => uploadFile(upload.files[0]);
+
+    const choose = element("button", "원본 영상 불러오기 / 여기에 드롭", source);
+
+    choose.disabled = rt.busy || rt.running;
+
+    choose.onclick = () => upload.click();
+
+    choose.ondragover = e => { e.preventDefault(); e.stopPropagation(); };
+
+    choose.ondrop = e => { e.preventDefault(); e.stopPropagation(); void uploadFile(e.dataTransfer.files[0]); };
+
+    if (s.source_video) {
+
+      const filename = s.source_video.replaceAll("\\", "/");
+
+      const split = filename.lastIndexOf("/");
+
+      const media = { filename: filename.slice(split + 1), subfolder: filename.slice(0, Math.max(0, split)), type: "input" };
+
+      const card = element("div", null, panel);
+
+      card.style.cssText = "border:1px dashed #7dd5ac;border-radius:8px;padding:10px;background:#14252a;display:flex;flex-direction:column;gap:8px";
+
+      const header = element("div", null, card);
+
+      header.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap";
+
+      const name = element("strong", media.filename, header);
+
+      name.style.cssText = "overflow-wrap:anywhere;min-width:0";
+
+      button(header, "원본 영상 삭제", async () => {
+
+        await invalidate(0);
+
+        s.source_video = "";
+
+        delete s.cache_owner;
+
+        rt.preview = null;
+
+      });
+
+      const video = element("video", null, card);
+
+      video.src = viewURL(media);
+
+      video.controls = true;
+
+      video.playsInline = true;
+
+      video.preload = "metadata";
+
+      video.style.cssText = "display:block;width:100%;max-height:320px;object-fit:contain;background:#080c10;border-radius:5px";
+
+      for (const event of ["pointerdown", "mousedown", "touchstart"]) {
+
+        video.addEventListener(event, e => e.stopPropagation());
+
+      }
+
+      const info = element("small", "원본 영상 미리보기 · 재생 버튼으로 확인하세요.", card);
+
+      video.addEventListener("loadedmetadata", () => {
+
+        const seconds = Number.isFinite(video.duration) ? video.duration.toFixed(1) : "?";
+
+        info.textContent = `${video.videoWidth} × ${video.videoHeight} · ${seconds}초`;
+
+      });
+
+      video.addEventListener("error", () => {
+
+        info.textContent = "브라우저에서 재생할 수 없는 형식입니다. 원본 열기로 확인하세요.";
+
+      });
+
+      const open = element("a", "원본 열기", card);
+
+      open.href = viewURL(media);
+
+      open.target = "_blank";
+
+      open.rel = "noopener";
+
+      open.style.color = "#73d8ff";
+
+    } else {
+
+      element("span", "원본 영상을 선택하세요", source);
+
+    }
+
+    const colorRow = row();
+
+    element("span", "원본 색감 맞추기 · 강도", colorRow);
+
+    const colorStrength = element("input", null, colorRow);
+
+    colorStrength.type = "number"; colorStrength.min = 0; colorStrength.max = 1; colorStrength.step = 0.1;
+
+    colorStrength.value = s.source_color_strength ?? 0.5;
+
+    colorStrength.style.width = "65px"; colorStrength.disabled = rt.busy || rt.running;
+
+    colorStrength.onchange = () => { s.source_color_strength = Number(colorStrength.value); save(); };
+
+    element("small", "0=끄기 · 0.5=기본 · 1=강하게. 추가 영상에만 적용됩니다.", colorRow);
+
+    element("small", "마지막 구간의 움직임·오디오를 이어받고 원본 뒤에 저장합니다. 원본은 선택한 해상도·24fps로 변환됩니다.", panel);
+
+  }
+
+  }
+  const timeline = section();
+  const title = row(timeline);
+
+  element("strong", "장면 타임라인", title);
+
+  element("span", null, title).className = "dl-spacer";
+  button(title, "+ 장면 추가", () => { s.clips.push(newClip()); rt.selected = s.clips.length - 1; });
+
+  button(title, "캐시 상태 확인", async () => {
+
+    if (!s.cache_owner) return;
+
+    const result = await request(`/director_plus/extender/cache_state?${new URLSearchParams({ owner_id: s.cache_owner, generation_mode: "ref2va", motion_context: "true" })}`);
+
+    const checked = reconcileSceneCache(s, result);
+    rt.cacheChecked = true; rt.cached = checked.cached; rt.needsRegeneration = checked.missing;
+  });
+
+  const preview = rt.preview || s.last_preview?.video;
+  const spans = rt.spans || s.last_preview?.scenes || [];
+  const cards = element("div", null, timeline); cards.className = "dl-cards";
+  s.clips.forEach((c, i) => {
+    const span = spans.find(x => x.id === c.id);
+    const available = rt.cached.includes(c.id) || (!rt.cacheChecked && !!span);
+    const needsRegeneration = (rt.needsRegeneration || []).includes(c.id);
+    const label = c.validated ? "✓ 승인 완료" : available ? "◷ 검토 중" : needsRegeneration ? "↻ 재생성 필요" : "Ⅱ 대기";
+    const card = element("div", null, cards); card.className = "dl-card" + (i === rt.selected ? " selected" : "");
+    card.style.cursor = "pointer";
+    card.addEventListener("click", e => {
+      if (rt.busy || rt.running || rt.selected === i) return;
+      if (e.target.closest("button, input, select, textarea, a, video")) return;
+      rt.selected = i;
+      save();
+      refresh();
+    });
+    const head = element("div", null, card); head.className = "dl-card-head";
+    button(head, `장면 ${i + 1} · ${c.duration}초`, () => { rt.selected = i; });
+    const badge = element("span", label, head); badge.className = "dl-status " + (c.validated ? "approved" : available ? "review" : "");
+    if (!c.validated && !available && !needsRegeneration) {
+      badge.textContent = "";
+      const pause = element("span", null, badge); pause.className = "dl-pause-icon";
+      pause.setAttribute("aria-hidden", "true");
+      element("span", "대기", badge);
+    }
+    if (preview && span && available) {
+      const video = element("video", null, card); video.className = "dl-preview";
+      video.controls = true; video.preload = "none"; video.playsInline = true;
+      const startTime = Number(span.start);
+      const endTime = Number(span.end);
+      const lastTime = Math.max(startTime, endTime - 1 / 24);
+      video.addEventListener("loadedmetadata", () => { video.currentTime = startTime; });
+      video.addEventListener("play", () => {
+        panel.querySelectorAll("video").forEach(other => { if (other !== video) other.pause(); });
+        if (!video.seeking && (video.currentTime < startTime - 0.02 || video.currentTime >= lastTime)) {
+          video.currentTime = startTime;
+        }
+      });
+      video.addEventListener("timeupdate", () => {
+        if (!video.seeking && !video.paused && video.currentTime >= endTime - 0.02) video.pause();
+      });
+      video.addEventListener("seeked", () => {
+        if (video.currentTime < startTime - 0.02) video.currentTime = startTime;
+        else if (video.currentTime >= endTime) video.currentTime = lastTime;
+      });
+      video.src = viewURL(preview);
+      video.addEventListener("error", () => {
+        video.replaceWith(Object.assign(document.createElement("div"), {className:"dl-preview dl-empty", textContent:"미리보기 파일을 찾을 수 없습니다"}));
+      });
+      for (const name of ["pointerdown", "mousedown", "touchstart"]) video.addEventListener(name, e => e.stopPropagation());
+    } else {
+      const empty = button(card, available ? "▶ 실행 완료 후 미리보기" : needsRegeneration ? "↻ 캐시 없음 · 재생성 필요" : "▶ 생성 대기", () => { rt.selected = i; });
+      empty.className = "dl-preview dl-empty";
+    }
+  });
+  const summary = row(timeline);
+  element("span", `설정 길이 ${s.clips.reduce((sum, c) => sum + Number(c.duration), 0)}초 · 승인 ${s.clips.filter(c => c.validated).length} / ${s.clips.length}`, summary);
+  element("span", null, summary).className = "dl-spacer";
+  element("small", "최종 길이는 겹치는 문맥 구간만큼 줄어듭니다.", summary).className = "dl-muted";
+
+  rt.selected = Math.min(rt.selected, s.clips.length - 1);
+
+  const current = s.clips[rt.selected];
+
+  if (current) {
+
+    const editor = section();
+    element("strong", `장면 ${rt.selected + 1} 프롬프트`, editor);
+    const details = row(editor);
+
+
+
+    const number = (label, key, min, max) => {
+
+      element("span", label, details);
+
+      const input = element("input", null, details); input.type = "number"; input.min = min; input.max = max; input.value = current[key]; input.style.width = key === "seed" ? "155px" : "65px";
+
+      input.disabled = current.validated || rt.busy || rt.running;
+
+      input.onchange = async () => { try { await invalidate(rt.selected); current[key] = Number(input.value); save(); refresh(); } catch (e) { rt.message = e.message; refresh(); } };
+
+    };
+
+    number("길이(초)", "duration", 1, 1000); number("Seed", "seed", 0, Number.MAX_SAFE_INTEGER);
+
+    button(details, "새 시드", async () => { await invalidate(rt.selected); current.seed = Math.floor(Math.random() * 1e12); });
+
+    const useExternal = current.use_external_prompt ?? !String(current.prompt || "").trim();
+
+    element("span", "외부 프롬프트", details);
+    const externalToggle = button(details, useExternal ? "ON" : "OFF", () => {
+
+      current.use_external_prompt = !useExternal;
+
+    });
+
+    externalToggle.className = "dl-toggle"; externalToggle.setAttribute("aria-pressed", String(useExternal));
+    externalToggle.disabled ||= current.validated;
+    element("small", "ON: 실행 시 Prompt Freeze 내용을 저장 · OFF: 저장된 장면 프롬프트 유지", editor).className = "dl-muted";
+
+    externalToggle.title = "ON: 실행할 때 Prompt Freeze의 출력을 이 장면에 저장합니다. OFF: 장면 프롬프트를 유지합니다.";
+
+    const prompt = element("textarea", null, editor); prompt.value = current.prompt || "";
+
+    prompt.placeholder = "ON: 실행 시 외부 프롬프트를 가져와 저장합니다. OFF: 여기에 적힌 내용을 그대로 사용합니다.";
+
+    prompt.style.cssText = "width:100%;min-height:110px;box-sizing:border-box;background:#182630;color:#e1edf5;padding:10px;border:1px solid #36505b;border-radius:5px;resize:vertical";
+
+    prompt.disabled = current.validated || rt.busy || rt.running;
+
+    prompt.onchange = async () => { try { await invalidate(rt.selected); current.prompt = prompt.value; save(); } catch (e) { rt.message = e.message; } refresh(); };
+
+    const actions = row(editor);
+    button(actions, "▶ 생성 / 실행", async () => { save(); await app.queuePrompt(0, 1); }).className = "dl-blue";
+
+    button(actions, "다시 생성", async () => { await invalidate(rt.selected); save(); await app.queuePrompt(0, 1); });
+
+    const approve = button(actions, "승인하고 다음 장면", async () => {
+
+      const result = await request("/director_plus/extender/local_ref_invalidate", { owner_id: s.cache_owner, generation_mode: "ref2va", motion_context: true, clip_index: rt.selected, validated: true });
+
+      if (!result.found) throw new Error("먼저 이 장면을 생성하세요.");
+
+      current.validated = true;
+
+      const hasNext = rt.selected < s.clips.length - 1;
+
+      if (!hasNext) s.clips.push(newClip());
+
+      rt.selected += 1;
+
+      save();
+
+
+
+    });
+
+    approve.className = "dl-green";
+    approve.disabled ||= !rt.cached.includes(current.id) || current.validated;
+
+    button(actions, "승인 해제 / 편집", () => invalidate(rt.selected));
+
+    button(actions, "장면 삭제", async () => { if (s.clips.length < 2) return; await invalidate(rt.selected); s.clips.splice(rt.selected, 1); });
+
+
+
+  }
+
+  const projects = row(section());
+
+  button(projects, "프로젝트 저장 (.ext)", async () => {
+    const widgets = Object.fromEntries(node.widgets.filter(w => ["width", "height", "duration", "ref_image_size", "frame_rate", "mode", "builder_state"].includes(w.name)).map(w => [w.name, w.value]));
+    const result = await request("/director_plus/project/save", {state, widgets});
+    const link = element("a"); link.href = api.apiURL('/director_plus/extender/project/download?' + new URLSearchParams({token: result.token}));
+    link.download = "Director_Project.ext"; link.click();
+  });
+
+  const load = element("input", null, projects); load.type = "file"; load.accept = ".ext,.json"; load.style.display = "none";
+
+  load.onchange = async () => {
+    if (!load.files?.[0] || rt.busy || rt.running) return;
+    rt.busy = true;
+    refresh();
+    try {
+      let incoming;
+      let importedDirector = null;
+      if (load.files[0].name.toLowerCase().endsWith(".ext")) {
+        const body = new FormData(); body.append("project_file", load.files[0]);
+        const response = await api.fetchApi("/director_plus/project/load", {method: "POST", body});
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || "프로젝트 복원 실패");
+        importedDirector = result.director;
+        incoming = importedDirector.state.long_video;
+      } else {
+        incoming = JSON.parse(await load.files[0].text());
+      }
+      if (!Array.isArray(incoming.clips) || !incoming.clips.length || !incoming.project_id ||
+          incoming.clips.some(c => !c || typeof c.id !== "string") ||
+          new Set(incoming.clips.map(c => c.id)).size !== incoming.clips.length) throw new Error("장면 설정 파일이 아닙니다.");
+      if (s.source_mode_enabled === false) {
+        if (incoming.start_mode === "video") delete incoming.cache_owner;
+        incoming.source_mode_enabled = false; incoming.start_mode = "new";
+        delete incoming.source_video; delete incoming.source_color_strength;
+      }
+      const result = incoming.cache_owner
+        ? await request('/director_plus/extender/cache_state?' + new URLSearchParams({owner_id: incoming.cache_owner, mode: "ref2va", motion_context: "true"}))
+        : {found: false};
+      const checked = reconcileSceneCache(incoming, result);
+      if (importedDirector) {
+        Object.assign(state, importedDirector.state);
+        for (const [name, value] of Object.entries(importedDirector.widgets)) {
+          const widget = node.widgets.find(w => w.name === name);
+          if (widget) widget.value = value;
+        }
+      }
+      state.long_video = incoming;
+      rt.cached = checked.cached; rt.needsRegeneration = checked.missing; rt.cacheChecked = true;
+      rt.preview = null; rt.spans = null;
+      rt.selected = Math.max(0, incoming.clips.findIndex(c => !c.validated));
+      rt.message = checked.missing.length
+        ? '설정 불러오기 완료 · 재생성 필요 ' + checked.missing.length + '개 · 프롬프트와 시드는 유지했습니다.'
+        : '설정 불러오기 완료 · 캐시 확인 완료';
+      save();
+    } catch (e) { rt.message = '설정을 불러오지 못했습니다: ' + e.message; }
+    finally { rt.busy = false; refresh(); }
+  };
+
+  button(projects, "프로젝트 불러오기", () => load.click());
+
+  element("span", null, projects).className = "dl-spacer";
+  if (preview) {
+    const link = element("a", "↓ 완성 영상 열기 / 저장", projects);
+    link.className = "dl-button dl-blue"; link.href = viewURL(preview); link.target = "_blank"; link.rel = "noopener";
+  } else {
+    const download = button(projects, "↓ 완성 영상 열기 / 저장", () => {}); download.disabled = true;
+  }
+  element("small", "영상은 실행 후 자동 저장 · .ext는 장면·레퍼런스·캐시 보관 · 모델/Settings는 워크플로우도 함께 저장", projects).className = "dl-muted";
+
+  if (rt.message) { const message = element("div", rt.message, panel); message.style.color = "#ffbc80"; }
+
+  return panel;
+
+}
+
+function directors() { return (app.graph?._nodes || []).filter(n => n.comfyClass === "DirectorPlusTimeline" && n.__directorLong); }
+
+api.addEventListener("director-plus-long-state", event => {
+
+  const d = event.detail;
+
+  for (const node of directors()) {
+
+    const rt = node.__directorLong;
+
+    if (rt.state.long_video.project_id !== d.project_id) continue;
+
+    const lastPreview = rt.state.long_video.last_preview;
+    rt.state.long_video = d.state; rt.state.long_video.last_preview = lastPreview; rt.cached = d.ui.cached_clip_ids || []; rt.cacheChecked = true;
+    rt.needsRegeneration = (rt.needsRegeneration || []).filter(id => !rt.cached.includes(id));
+
+    rt.message = `생성 ${d.ui.cached_count} / ${d.ui.clip_count} · 승인 ${d.ui.validated_count}`;
+
+    rt.emit(); node.__directorPlusH3Render?.();
+
+  }
+
+});
+
+api.addEventListener("director-plus-long-preview", event => {
+
+  const d = event.detail;
+
+  for (const node of directors()) if (node.__directorLong.state.long_video.project_id === d.project_id) {
+
+    const rt = node.__directorLong;
+    rt.preview = { ...d.video, preview_revision: Date.now() }; rt.spans = d.scenes || [];
+    rt.state.long_video.last_preview = { video: rt.preview, scenes: rt.spans };
+    rt.emit(); node.__directorPlusH3Render?.();
+
+  }
+
+});
+
+api.addEventListener("execution_start", () => {
+
+  for (const node of directors()) { node.__directorLong.running = true; node.__directorPlusH3Render?.(); }
+
+});
+
+function finished() {
+
+  for (const node of directors()) { node.__directorLong.running = false; node.__directorPlusH3Render?.(); }
+
+}
+
+api.addEventListener("execution_error", finished);
+
+api.addEventListener("execution_interrupted", finished);
+
+api.addEventListener("executing", event => { if (event.detail == null || event.detail?.node === null) finished(); });
+

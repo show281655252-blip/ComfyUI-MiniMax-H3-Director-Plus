@@ -1,0 +1,10 @@
+[project]
+name = "comfyui-minimax-h3-director-plus"
+version = "0.2.0a1"
+description = "Standalone MiniMax H3 scene timeline and Motion Context generation for ComfyUI"
+license = {file = "LICENSE"}
+requires-python = ">=3.10"
+dependencies = ["av", "numpy", "Pillow", "aiohttp", "safetensors", "torchaudio"]
+
+[project.urls]
+Repository = "https://github.com/show281655252-blip/ComfyUI-MiniMax-H3-Director-Plus"
