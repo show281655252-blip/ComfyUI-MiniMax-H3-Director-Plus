@@ -72,8 +72,25 @@ function installStyle() {
   .dp-h3 .dl-panel input,.dp-h3 .dl-panel select,.dp-h3 .dl-panel textarea{background:#142630!important;color:#edf6fc!important;border:1px solid #425e70!important;border-radius:7px!important;padding:9px!important;font:14px system-ui!important}
   .dp-h3 .dl-panel input:disabled,.dp-h3 .dl-panel textarea:disabled{opacity:.65}
   .dp-h3 .dl-panel textarea{width:100%;min-height:100px;resize:vertical}
-  .dp-h3 .dl-panel .dl-cards{display:flex;gap:12px;overflow-x:auto;padding:3px}
-  .dp-h3 .dl-panel .dl-card{flex:1 0 240px;min-width:0;border:1px solid #466071;border-radius:9px;background:#14222b;padding:10px;display:flex;flex-direction:column;gap:9px}
+  .dp-h3 .dl-panel .dl-strip{position:relative}
+  .dp-h3 .dl-panel .dl-cards{display:flex;gap:12px;overflow-x:auto;overflow-y:hidden;padding:3px 3px 12px;scroll-snap-type:x proximity;scrollbar-gutter:stable}
+  .dp-h3 .dl-panel .dl-card{flex:0 0 318px;width:318px;min-height:520px;border:1px solid #466071;border-radius:9px;background:#14222b;padding:10px;display:flex;flex-direction:column;gap:8px;scroll-snap-align:start;cursor:pointer}
+  .dp-h3 .dl-panel .dl-card-title{font-size:15px}
+  .dp-h3 .dl-panel .dl-next{color:#f7c35f;font-size:11px;font-weight:700;white-space:nowrap}
+  .dp-h3 .dl-panel .dl-card-row{display:flex;align-items:center;gap:6px}
+  .dp-h3 .dl-panel .dl-label{color:#9fb6c5;font-size:12px;font-weight:600}
+  .dp-h3 .dl-panel textarea.dl-card-prompt{flex:1 1 auto;min-height:200px;font-size:12px!important;line-height:1.45;cursor:text}
+  .dp-h3 .dl-panel .dl-card-grid{display:grid;grid-template-columns:1fr 38px 84px;gap:6px;align-items:end}
+  .dp-h3 .dl-panel .dl-field{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .dp-h3 .dl-panel .dl-field input{width:100%!important;padding:6px 8px!important;font-size:13px!important}
+  .dp-h3 .dl-panel button.dl-dice{padding:6px 0!important;height:33px}
+  .dp-h3 .dl-panel button.dl-small{padding:6px 10px!important;font-size:12px!important}
+  .dp-h3 .dl-panel .dl-card .dl-toggle{padding:4px 9px!important;min-width:60px;font-size:12px!important}
+  .dp-h3 .dl-panel .dl-card .dl-toggle:after{width:14px;height:14px}
+  .dp-h3 .dl-panel button.dl-nav{position:absolute;top:calc(50% - 26px);z-index:3;width:34px;height:52px;padding:0!important;border-radius:8px!important;background:rgba(16,32,42,.92)!important;font-size:16px!important;box-shadow:0 2px 10px #0008}
+  .dp-h3 .dl-panel button.dl-nav.prev{left:-6px}
+  .dp-h3 .dl-panel button.dl-nav.next{right:-6px}
+  .dp-h3 .dl-panel button.dl-nav:disabled{opacity:0;pointer-events:none}
   .dp-h3 .dl-panel .dl-card.selected{border:2px solid #14c3f4;padding:9px;box-shadow:0 0 8px #12b9eb35}
   .dp-h3 .dl-panel .dl-card-head{display:flex;align-items:center;justify-content:space-between;gap:7px}
   .dp-h3 .dl-panel .dl-card-head button{background:transparent!important;border:0!important;padding:3px!important;text-align:left}
@@ -86,7 +103,7 @@ function installStyle() {
   .dp-h3 .dl-panel .dl-validate.on{border-color:#327547;background:#103722;color:#82f595}
   .dp-h3 .dl-panel .dl-validate input{width:16px!important;height:16px!important;margin:0;padding:0!important;accent-color:#42c976;cursor:pointer}
   .dp-h3 .dl-panel .dl-validate:has(input:disabled){opacity:.5;cursor:default}
-  .dp-h3 .dl-panel .dl-preview{width:100%;height:320px;object-fit:contain;background:#0b151c;border-radius:6px;border:1px solid #293e48}
+  .dp-h3 .dl-panel .dl-preview{width:100%;height:170px;flex:0 0 170px;object-fit:contain;background:#0b151c;border-radius:6px;border:1px solid #293e48}
   .dp-h3 .dl-panel .dl-empty{display:flex;align-items:center;justify-content:center;color:#80919d;font-size:14px}
   .dp-h3 .dl-panel .dl-muted{color:#adc0ce;font-size:12px}
   .dp-h3 .dl-panel strong{font-size:17px}
@@ -386,23 +403,76 @@ export function renderLongVideo(node, state, emit) {
 
   const preview = rt.preview || s.last_preview?.video;
   const spans = rt.spans || s.last_preview?.scenes || [];
-  const cards = element("div", null, timeline); cards.className = "dl-cards";
+  rt.selected = Math.max(0, Math.min(rt.selected, s.clips.length - 1));
+
+  // Extender-style strip: fixed-width tall cards side by side, each with its own editor.
+  const strip = element("div", null, timeline); strip.className = "dl-strip";
+  const cards = element("div", null, strip); cards.className = "dl-cards";
+  const CARD_STEP = 330;
+  let syncNav = () => {};
+  const settle = () => { rt.scrollLeft = cards.scrollLeft; syncNav(); };
+  // Own easing instead of native smooth scrolling, which stalls in some embedded views.
+  const glide = left => {
+    const from = cards.scrollLeft, to = Math.max(0, Math.min(left, cards.scrollWidth - cards.clientWidth));
+    const t0 = performance.now();
+    cards.style.scrollSnapType = "none";
+    const step = now => {
+      const k = Math.min(1, (now - t0) / 260);
+      cards.scrollLeft = from + (to - from) * (1 - Math.pow(1 - k, 3));
+      if (k < 1) requestAnimationFrame(step); else { cards.style.scrollSnapType = ""; settle(); }
+    };
+    requestAnimationFrame(step);
+  };
+  if (s.clips.length >= 3) {
+    const nav = (text, dir, cls) => {
+      const b = element("button", text, strip); b.className = "dl-nav " + cls; b.type = "button";
+      b.onclick = e => { e.stopPropagation(); glide(cards.scrollLeft + dir * CARD_STEP); };
+      for (const name of ["pointerdown", "mousedown"]) b.addEventListener(name, e => e.stopPropagation());
+      return b;
+    };
+    const prev = nav("◀", -1, "prev"), next = nav("▶", 1, "next");
+    syncNav = () => {
+      prev.disabled = cards.scrollLeft <= 16;
+      next.disabled = cards.scrollLeft + cards.clientWidth >= cards.scrollWidth - 16;
+    };
+    cards.addEventListener("scroll", () => syncNav());
+    // The panel can be built while the node is off-screen (zero width); re-check once it has a size.
+    if (window.ResizeObserver) new ResizeObserver(() => syncNav()).observe(cards);
+  }
+  // The panel is rebuilt on every change; restore the strip position once it is mounted.
+  // Scroll events are ignored until then so the fresh element (at 0) cannot overwrite it.
+  const restoreLeft = rt.scrollLeft || 0;
+  let restored = false;
+  cards.addEventListener("scroll", () => { if (restored) rt.scrollLeft = cards.scrollLeft; });
+  setTimeout(() => {
+    restored = true;
+    if (rt.scrollTo != null) {
+      const target = cards.children[rt.scrollTo];
+      rt.scrollTo = null;
+      if (target) glide(target.offsetLeft - cards.offsetLeft - 4);
+    } else if (restoreLeft) cards.scrollLeft = restoreLeft;
+    settle();
+  }, 0);
+
   s.clips.forEach((c, i) => {
     const span = spans.find(x => x.id === c.id);
     const available = rt.cached.includes(c.id) || (!rt.cacheChecked && !!span);
     const needsRegeneration = (rt.needsRegeneration || []).includes(c.id);
     const label = c.validated ? "✓ 승인 완료" : available ? "◷ 검토 중" : needsRegeneration ? "↻ 재생성 필요" : "Ⅱ 대기";
+    const locked = c.validated || rt.busy || rt.running;
     const card = element("div", null, cards); card.className = "dl-card" + (i === rt.selected ? " selected" : "");
-    card.style.cursor = "pointer";
     card.addEventListener("click", e => {
       if (rt.busy || rt.running || rt.selected === i) return;
-      if (e.target.closest("button, input, select, textarea, a, video")) return;
+      if (e.target.closest("button, input, select, textarea, a, video, label")) return;
       rt.selected = i;
       save();
       refresh();
     });
+
     const head = element("div", null, card); head.className = "dl-card-head";
-    button(head, `장면 ${i + 1} · ${c.duration}초`, () => { rt.selected = i; });
+    element("strong", `장면 ${i + 1}`, head).className = "dl-card-title";
+    if (!c.validated && s.clips.slice(0, i).every(x => x.validated)) element("span", "● NEXT", head).className = "dl-next";
+    element("span", null, head).className = "dl-spacer";
     // Validated checkbox, same rules as the Extender: approval is a contiguous
     // prefix, and unticking keeps the cached segment so it can be re-ticked.
     const canValidate = c.validated || (available && s.clips.slice(0, i).every(x => x.validated));
@@ -418,7 +488,7 @@ export function renderLongVideo(node, state, emit) {
         try {
           await setValidated(i, box.checked);
           // Like the Extender, approving hands focus to the next clip.
-          if (box.checked && i + 1 < s.clips.length) rt.selected = i + 1;
+          if (box.checked && i + 1 < s.clips.length) { rt.selected = i + 1; rt.scrollTo = i + 1; }
           rt.message = "";
         } catch (e) { rt.message = e.message; }
         finally { rt.busy = false; save(); refresh(); }
@@ -432,6 +502,7 @@ export function renderLongVideo(node, state, emit) {
         element("span", "대기", badge);
       }
     }
+
     if (preview && span && available) {
       const video = element("video", null, card); video.className = "dl-preview";
       video.controls = true; video.preload = "none"; video.playsInline = true;
@@ -458,78 +529,52 @@ export function renderLongVideo(node, state, emit) {
       });
       for (const name of ["pointerdown", "mousedown", "touchstart"]) video.addEventListener(name, e => e.stopPropagation());
     } else {
-      const empty = button(card, available ? "▶ 실행 완료 후 미리보기" : needsRegeneration ? "↻ 캐시 없음 · 재생성 필요" : "▶ 생성 대기", () => { rt.selected = i; });
+      const empty = element("div", available ? "▶ 실행 완료 후 미리보기" : needsRegeneration ? "↻ 캐시 없음 · 재생성 필요" : "▶ 생성 대기", card);
       empty.className = "dl-preview dl-empty";
     }
+
+    const useExternal = c.use_external_prompt ?? !String(c.prompt || "").trim();
+    const promptHead = element("div", null, card); promptHead.className = "dl-card-row";
+    element("span", "프롬프트", promptHead).className = "dl-label";
+    element("span", null, promptHead).className = "dl-spacer";
+    element("span", "외부 프롬프트", promptHead).className = "dl-label";
+    const externalToggle = button(promptHead, useExternal ? "ON" : "OFF", async () => { c.use_external_prompt = !useExternal; });
+    externalToggle.className = "dl-toggle"; externalToggle.setAttribute("aria-pressed", String(useExternal));
+    externalToggle.disabled ||= c.validated;
+    externalToggle.title = "ON: 실행할 때 Prompt Freeze의 출력을 이 장면에 저장합니다. OFF: 장면 프롬프트를 유지합니다.";
+
+    const prompt = element("textarea", null, card); prompt.className = "dl-card-prompt"; prompt.value = c.prompt || "";
+    prompt.placeholder = useExternal ? "ON: 실행 시 외부 프롬프트를 가져와 저장합니다." : "이 장면에 사용할 프롬프트";
+    prompt.disabled = locked;
+    prompt.onchange = async () => { try { await invalidate(i); c.prompt = prompt.value; save(); } catch (e) { rt.message = e.message; } refresh(); };
+
+    const numbers = element("div", null, card); numbers.className = "dl-card-grid";
+    const number = (label, key, min, max) => {
+      const wrap = element("label", null, numbers); wrap.className = "dl-field";
+      element("span", label, wrap).className = "dl-label";
+      const input = element("input", null, wrap); input.type = "number"; input.min = min; input.max = max; input.value = c[key];
+      input.disabled = locked;
+      input.onchange = async () => { try { await invalidate(i); c[key] = Number(input.value); save(); refresh(); } catch (e) { rt.message = e.message; refresh(); } };
+    };
+    number("Seed", "seed", 0, Number.MAX_SAFE_INTEGER);
+    const dice = button(numbers, "🎲", async () => { await invalidate(i); c.seed = Math.floor(Math.random() * 1e12); });
+    dice.className = "dl-dice"; dice.title = "새 시드"; dice.disabled ||= c.validated;
+    number("길이(초)", "duration", 1, 1000);
+
+    const foot = element("div", null, card); foot.className = "dl-card-row";
+    const again = button(foot, "다시 생성", async () => { rt.selected = i; await invalidate(i); save(); await app.queuePrompt(0, 1); });
+    again.className = "dl-small";
+    const remove = button(foot, "삭제", async () => { if (s.clips.length < 2) return; await invalidate(i); s.clips.splice(i, 1); rt.selected = Math.min(rt.selected, s.clips.length - 1); });
+    remove.className = "dl-small"; remove.disabled ||= s.clips.length < 2;
+    element("span", null, foot).className = "dl-spacer";
+    element("span", `${c.duration}초`, foot).className = "dl-muted";
   });
+
   const summary = row(timeline);
+  button(summary, "▶ 생성 / 실행", async () => { save(); await app.queuePrompt(0, 1); }).className = "dl-blue";
   element("span", `설정 길이 ${s.clips.reduce((sum, c) => sum + Number(c.duration), 0)}초 · 승인 ${s.clips.filter(c => c.validated).length} / ${s.clips.length}`, summary);
   element("span", null, summary).className = "dl-spacer";
   element("small", "최종 길이는 겹치는 문맥 구간만큼 줄어듭니다.", summary).className = "dl-muted";
-
-  rt.selected = Math.min(rt.selected, s.clips.length - 1);
-
-  const current = s.clips[rt.selected];
-
-  if (current) {
-
-    const editor = section();
-    element("strong", `장면 ${rt.selected + 1} 프롬프트`, editor);
-    const details = row(editor);
-
-
-
-    const number = (label, key, min, max) => {
-
-      element("span", label, details);
-
-      const input = element("input", null, details); input.type = "number"; input.min = min; input.max = max; input.value = current[key]; input.style.width = key === "seed" ? "155px" : "65px";
-
-      input.disabled = current.validated || rt.busy || rt.running;
-
-      input.onchange = async () => { try { await invalidate(rt.selected); current[key] = Number(input.value); save(); refresh(); } catch (e) { rt.message = e.message; refresh(); } };
-
-    };
-
-    number("길이(초)", "duration", 1, 1000); number("Seed", "seed", 0, Number.MAX_SAFE_INTEGER);
-
-    button(details, "새 시드", async () => { await invalidate(rt.selected); current.seed = Math.floor(Math.random() * 1e12); });
-
-    const useExternal = current.use_external_prompt ?? !String(current.prompt || "").trim();
-
-    element("span", "외부 프롬프트", details);
-    const externalToggle = button(details, useExternal ? "ON" : "OFF", () => {
-
-      current.use_external_prompt = !useExternal;
-
-    });
-
-    externalToggle.className = "dl-toggle"; externalToggle.setAttribute("aria-pressed", String(useExternal));
-    externalToggle.disabled ||= current.validated;
-    element("small", "ON: 실행 시 Prompt Freeze 내용을 저장 · OFF: 저장된 장면 프롬프트 유지", editor).className = "dl-muted";
-
-    externalToggle.title = "ON: 실행할 때 Prompt Freeze의 출력을 이 장면에 저장합니다. OFF: 장면 프롬프트를 유지합니다.";
-
-    const prompt = element("textarea", null, editor); prompt.value = current.prompt || "";
-
-    prompt.placeholder = "ON: 실행 시 외부 프롬프트를 가져와 저장합니다. OFF: 여기에 적힌 내용을 그대로 사용합니다.";
-
-    prompt.style.cssText = "width:100%;min-height:110px;box-sizing:border-box;background:#182630;color:#e1edf5;padding:10px;border:1px solid #36505b;border-radius:5px;resize:vertical";
-
-    prompt.disabled = current.validated || rt.busy || rt.running;
-
-    prompt.onchange = async () => { try { await invalidate(rt.selected); current.prompt = prompt.value; save(); } catch (e) { rt.message = e.message; } refresh(); };
-
-    const actions = row(editor);
-    button(actions, "▶ 생성 / 실행", async () => { save(); await app.queuePrompt(0, 1); }).className = "dl-blue";
-
-    button(actions, "다시 생성", async () => { await invalidate(rt.selected); save(); await app.queuePrompt(0, 1); });
-
-    button(actions, "장면 삭제", async () => { if (s.clips.length < 2) return; await invalidate(rt.selected); s.clips.splice(rt.selected, 1); });
-
-
-
-  }
 
   const projects = row(section());
 
