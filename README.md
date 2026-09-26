@@ -26,7 +26,7 @@ PyTorch/torchaudio를 다른 버전으로 교체하지 말고 ComfyUI 배포본�
 ## 필요한 것
 
 - MiniMax H3를 지원하는 ComfyUI
-- **ComfyUI-Hyperflow** 노드와 가중치 (예제 워크플로우용)
+- **ComfyUI-Hyperflow** 노드와 가중치 (예제 워크플로우용) — 원래 저장소(Saganaki22)가 사라져 호환 포크 [jalberty2018/ComfyUI-Hyperflow](https://github.com/jalberty2018/ComfyUI-Hyperflow)로 확인했습니다. 가중치: [drbaph/Hyperflow-Comfyui](https://huggingface.co/drbaph/Hyperflow-Comfyui) → `models/hyperflow/`
 - Ref2VA 모델, MiniMax용 텍스트 인코더, video/audio VAE — 모델은 자동 다운로드하지 않습니다.
 
 ## 노드
