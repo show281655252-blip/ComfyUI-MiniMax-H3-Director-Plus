@@ -257,6 +257,9 @@ function install(node) {
   timeline.addEventListener("wheel", event => {
     const openMenu = event.target instanceof Element ? event.target.closest(".dp-h3-res-menu.open") : null;
     if (openMenu && openMenu.scrollHeight > openMenu.clientHeight) return;
+    // Let a prompt that overflows scroll under the wheel (Extender behaviour); Ctrl+wheel still zooms.
+    const scroller = event.target instanceof Element ? event.target.closest('textarea, [data-capture-wheel="true"]') : null;
+    if (!event.ctrlKey && scroller && scroller.scrollHeight > scroller.clientHeight) return;
     const canvas = app.canvas?.canvas;
     if (!canvas) return;
     event.preventDefault();

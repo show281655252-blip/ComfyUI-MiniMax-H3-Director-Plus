@@ -80,6 +80,7 @@ function installStyle() {
   .dp-h3 .dl-panel .dl-card-row{display:flex;align-items:center;gap:6px}
   .dp-h3 .dl-panel .dl-label{color:#9fb6c5;font-size:12px;font-weight:600}
   .dp-h3 .dl-panel textarea.dl-card-prompt{flex:1 1 auto;min-height:420px;font-size:12px!important;line-height:1.45;cursor:text}
+  .dp-h3 .dl-panel textarea.dl-card-prompt.locked{opacity:.65;cursor:default}
   .dp-h3 .dl-panel .dl-card-grid{display:grid;grid-template-columns:1fr 38px 84px;gap:6px;align-items:end}
   .dp-h3 .dl-panel .dl-field{display:flex;flex-direction:column;gap:3px;min-width:0}
   .dp-h3 .dl-panel .dl-field input{width:100%!important;padding:6px 8px!important;font-size:13px!important}
@@ -545,8 +546,17 @@ export function renderLongVideo(node, state, emit) {
 
     const prompt = element("textarea", null, card); prompt.className = "dl-card-prompt"; prompt.value = c.prompt || "";
     prompt.placeholder = useExternal ? "ON: 실행 시 외부 프롬프트를 가져와 저장합니다." : "이 장면에 사용할 프롬프트";
-    prompt.disabled = locked;
-    prompt.onchange = async () => { try { await invalidate(i); c.prompt = prompt.value; save(); } catch (e) { rt.message = e.message; } refresh(); };
+    // Read-only rather than disabled, so an approved scene's long prompt can still be scrolled and read.
+    prompt.readOnly = locked;
+    if (locked) prompt.classList.add("locked");
+    // Same as the Extender: the wheel scrolls a long prompt instead of zooming the graph.
+    prompt.dataset.captureWheel = "true";
+    prompt.addEventListener("mouseenter", () => {
+      const nodes2 = typeof globalThis.LiteGraph?.vueNodesMode === "boolean" ? globalThis.LiteGraph.vueNodesMode : Boolean(prompt.closest?.(".lg-node-widget"));
+      if (!nodes2 || document.activeElement === prompt) return;
+      try { prompt.focus({ preventScroll: true }); } catch { prompt.focus(); }
+    });
+    prompt.onchange = async () => { if (prompt.readOnly) return; try { await invalidate(i); c.prompt = prompt.value; save(); } catch (e) { rt.message = e.message; } refresh(); };
 
     const numbers = element("div", null, card); numbers.className = "dl-card-grid";
     const number = (label, key, min, max) => {
