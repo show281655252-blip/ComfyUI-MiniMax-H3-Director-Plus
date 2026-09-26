@@ -59,6 +59,29 @@ def build_project(payload, output):
     return meta
 
 
+def _store_media(archive, member, suffix, media_root):
+    """Copy one archived reference into a content-addressed file, reusing an identical copy.
+
+    Loading the same project (or another project with the same pictures) repeatedly
+    used to create a new folder each time; the hash name lets every load share one file.
+    """
+    temp = media_root / f".incoming_{uuid.uuid4().hex}{suffix}"
+    digest = hashlib.sha256()
+    try:
+        with archive.open(member) as source, temp.open("wb") as target:
+            while chunk := source.read(1024 * 1024):
+                digest.update(chunk)
+                target.write(chunk)
+        output = media_root / f"{digest.hexdigest()[:32]}{suffix}"
+        if output.is_file() and output.stat().st_size == temp.stat().st_size:
+            temp.unlink()
+        else:
+            temp.replace(output)
+        return output
+    finally:
+        temp.unlink(missing_ok=True)
+
+
 def restore_project(path):
     with zipfile.ZipFile(path) as archive:
         meta = json.loads(archive.read("project.json"))
@@ -75,7 +98,8 @@ def restore_project(path):
         long.pop("source_video", None)
         long.pop("last_preview", None)
         owner = project_owner(long, director["widgets"])
-        destination = Path(folder_paths.get_input_directory()) / "director_projects" / long["project_id"]
+        input_root = Path(folder_paths.get_input_directory())
+        media_root = input_root / "director_projects" / "media"
         assets = []
         for index, item in enumerate(state.get("items", [])):
             member = item.get("value")
@@ -85,14 +109,13 @@ def restore_project(path):
             if member != f"director_media/{index}{suffix}" or suffix not in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".mp4", ".mov", ".webm", ".mkv", ".avi", ".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac"}:
                 raise ValueError("Invalid Director media archive path.")
             archive.getinfo(member)
-            assets.append((item, member, destination / f"{index}{suffix}"))
+            assets.append((item, member, suffix))
         imported = extender._import_project_archive(owner, path)
         if assets:
-            destination.mkdir(parents=True, exist_ok=True)
-        for item, member, output in assets:
-            with archive.open(member) as source, output.open("wb") as target:
-                shutil.copyfileobj(source, target, 1024 * 1024)
-            item["value"] = output.relative_to(folder_paths.get_input_directory()).as_posix()
+            media_root.mkdir(parents=True, exist_ok=True)
+        for item, member, suffix in assets:
+            output = _store_media(archive, member, suffix, media_root)
+            item["value"] = output.relative_to(input_root).as_posix()
             item["thumbnail"] = None
         restored = extender._clips_from_project_payload(imported["project"])
         originals = {c["id"]: c for c in long["clips"]}
