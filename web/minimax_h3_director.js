@@ -286,7 +286,7 @@ function install(node) {
     builderState.prompt_mode = "simple";
   }
   migratePromptToSingleField();
-  const emit = () => { builderState.mode = mode(); const duration = Number(node.widgets?.find(w => w.name === "duration")?.value); if (Number.isFinite(duration)) builderState.duration = duration; const resolved = builderPromptForWidget(builderState, mode()); if (promptWidget && promptWidget.value !== resolved) { promptWidget.value = resolved; promptWidget.callback?.(resolved); } state.field_heights = { ...fieldHeights }; state.builder_state = builderState; state.resolved_prompt = resolved; dataWidget.value = JSON.stringify(state); dataWidget.callback?.(dataWidget.value); if (builderWidget) { builderWidget.value = JSON.stringify(builderState); builderWidget.callback?.(builderWidget.value); } node.graph?.setDirtyCanvas(true, true); };
+  const emit = () => { builderState.mode = mode(); const duration = Number(node.widgets?.find(w => w.name === "duration")?.value); if (Number.isFinite(duration)) builderState.duration = duration; const resolved = builderPromptForWidget(builderState, mode()); if (promptWidget && promptWidget.value !== resolved) { promptWidget.value = resolved; promptWidget.callback?.(resolved); } if (!hasExternalPrompt()) node.__directorLong?.syncMainPrompt?.(resolved); state.field_heights = { ...fieldHeights }; state.builder_state = builderState; state.resolved_prompt = resolved; dataWidget.value = JSON.stringify(state); dataWidget.callback?.(dataWidget.value); if (builderWidget) { builderWidget.value = JSON.stringify(builderState); builderWidget.callback?.(builderWidget.value); } node.graph?.setDirtyCanvas(true, true); };
   const refModLibrary = { loaded: false, loading: false, entries: [], error: "" };
   let refModPromptField = null;
   let refModActiveBadge = null;
@@ -1441,6 +1441,7 @@ function install(node) {
     }
   };
   node.__directorPlusH3RestorePersistedState = () => requestAnimationFrame(restorePersistedState);
+  node.__directorPlusH3HasExternalPrompt = hasExternalPrompt;
   node.__directorPlusH3State = () => state; node.__directorPlusH3Render = render;
   // H3 Forge (js/minimax_h3_forge.js) reads the timeline from here and writes
   // its result back through apply(), so the builder fields, the Simple box and

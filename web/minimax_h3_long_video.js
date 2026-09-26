@@ -80,6 +80,7 @@ function installStyle() {
   .dp-h3 .dl-panel .dl-next{color:#f7c35f;font-size:11px;font-weight:700;white-space:nowrap}
   .dp-h3 .dl-panel .dl-card-row{display:flex;align-items:center;gap:6px}
   .dp-h3 .dl-panel .dl-label{color:#9fb6c5;font-size:12px;font-weight:600}
+  .dp-h3 .dl-panel .dl-linked{color:#7feeff;font-size:11px;font-weight:600;white-space:nowrap}
   .dp-h3 .dl-panel textarea.dl-card-prompt{flex:1 1 auto;min-height:420px;font-size:12px!important;line-height:1.45;cursor:text}
   .dp-h3 .dl-panel textarea.dl-card-prompt.locked{opacity:.65;cursor:default}
   .dp-h3 .dl-panel .dl-card-grid{display:grid;grid-template-columns:1fr 38px 84px;gap:6px;align-items:end}
@@ -186,6 +187,28 @@ export function renderLongVideo(node, state, emit) {
     rt.cacheChecked = true;
     rt.cached = rt.cached.filter(id => s.clips.findIndex(c => c.id === id) < index);
 
+  };
+
+  // Without an external prompt link, the Director's main Prompt feeds scene 1. Called from the
+  // Director's emit(): only a change of the main prompt is copied (or an empty scene 1 is filled),
+  // so edits made directly in the scene 1 card are not overwritten by unrelated updates.
+  rt.syncMainPrompt = text => {
+    const long = rt.state?.long_video;
+    const first = long?.clips?.[0];
+    const value = String(text || "").trim() ? String(text) : "";
+    const previous = rt.lastMainPrompt;
+    rt.lastMainPrompt = value;
+    if (!long?.enabled || !first || first.validated || !value || first.prompt === value) return;
+    const changed = previous !== undefined && previous !== value;
+    if (!changed && String(first.prompt || "").trim()) return;
+    first.prompt = value;
+    if (long.cache_owner && rt.cached.includes(first.id)) {
+      // Same as editing the card: the generated scene 1 no longer matches its prompt.
+      rt.cached = [];
+      request("/director_plus/extender/local_ref_invalidate", { owner_id: long.cache_owner, generation_mode: "ref2va", motion_context: true, clip_index: 0, validated: false }).catch(() => {});
+    }
+    const box = rt.scene1PromptEl;
+    if (box?.isConnected && document.activeElement !== box) box.value = value;
   };
 
   // Tick/untick approval without touching the cache (Extender "Validated" behaviour).
@@ -560,6 +583,10 @@ export function renderLongVideo(node, state, emit) {
     const useExternal = c.use_external_prompt ?? !String(c.prompt || "").trim();
     const promptHead = element("div", null, card); promptHead.className = "dl-card-row";
     element("span", "프롬프트", promptHead).className = "dl-label";
+    if (i === 0 && !node.__directorPlusH3HasExternalPrompt?.()) {
+      const linked = element("span", "↔ 아래 Prompt 연동", promptHead); linked.className = "dl-linked";
+      linked.title = "외부 프롬프트가 연결되지 않은 동안, 노드 아래쪽 Prompt를 고치면 장면 1 프롬프트에 자동으로 들어갑니다.";
+    }
     element("span", null, promptHead).className = "dl-spacer";
     element("span", "외부 프롬프트", promptHead).className = "dl-label";
     const externalToggle = button(promptHead, useExternal ? "ON" : "OFF", async () => { c.use_external_prompt = !useExternal; });
@@ -568,6 +595,7 @@ export function renderLongVideo(node, state, emit) {
     externalToggle.title = "ON: 실행할 때 Prompt Freeze의 출력을 이 장면에 저장합니다. OFF: 장면 프롬프트를 유지합니다.";
 
     const prompt = element("textarea", null, card); prompt.className = "dl-card-prompt"; prompt.value = c.prompt || "";
+    if (i === 0) rt.scene1PromptEl = prompt;
     prompt.placeholder = useExternal ? "ON: 실행 시 외부 프롬프트를 가져와 저장합니다." : "이 장면에 사용할 프롬프트";
     // Read-only rather than disabled, so an approved scene's long prompt can still be scrolled and read.
     prompt.readOnly = locked;
