@@ -64,6 +64,7 @@ function installStyle() {
   .dp-h3 .dl-panel button:disabled{opacity:.4;cursor:default}
   .dp-h3 .dl-panel button:hover:not(:disabled){border-color:#59d4ff!important}
   .dp-h3 .dl-panel button.dl-blue,.dp-h3 .dl-panel a.dl-blue{background:linear-gradient(#17446b,#165888)!important;border-color:#299eed!important}
+  .dp-h3 .dl-panel button.dl-red{background:linear-gradient(#5a2226,#6e2227)!important;border-color:#e0575f!important}
   .dp-h3 .dl-panel button.dl-green{background:linear-gradient(#185e3c,#167844)!important;border-color:#42c976!important}
   .dp-h3 .dl-panel button.dl-toggle{border-radius:99px!important;padding:7px 12px!important;min-width:74px}
   .dp-h3 .dl-panel button.dl-toggle[aria-pressed=true]{background:#136936!important;border-color:#79efa4!important;box-shadow:0 0 10px #36ce6650}
@@ -401,6 +402,20 @@ export function renderLongVideo(node, state, emit) {
     const checked = reconcileSceneCache(s, result);
     rt.cacheChecked = true; rt.cached = checked.cached; rt.needsRegeneration = checked.missing;
   });
+
+  // Start the timeline over as a fresh project. Settings (ON/OFF, run mode, Motion Context)
+  // are kept; the disk cache is left alone because other workflows may still use it.
+  const clearButton = button(title, "Clear", async () => {
+    const approved = s.clips.filter(c => c.validated).length;
+    if (!window.confirm(`장면 타임라인을 모두 지울까요?\n\n장면 ${s.clips.length}개(승인 ${approved}개)의 프롬프트·시드·길이·승인과 미리보기가 초기화되고 빈 장면 1개만 남습니다.\n저장한 .ext 프로젝트와 이미 만든 영상 파일은 그대로 남습니다.`)) return;
+    s.project_id = crypto.randomUUID();
+    delete s.cache_owner;
+    delete s.last_preview;
+    s.clips = [newClip()];
+    Object.assign(rt, { selected: 0, cached: [], needsRegeneration: [], cacheChecked: true, preview: null, spans: null, scrollLeft: 0, scrollTo: null });
+  });
+  clearButton.className = "dl-red";
+  clearButton.title = "모든 장면을 지우고 빈 장면 1개로 새로 시작합니다.";
 
   const preview = rt.preview || s.last_preview?.video;
   const spans = rt.spans || s.last_preview?.scenes || [];
