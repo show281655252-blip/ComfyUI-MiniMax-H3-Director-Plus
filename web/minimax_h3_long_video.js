@@ -189,25 +189,30 @@ export function renderLongVideo(node, state, emit) {
 
   };
 
-  // Without an external prompt link, the Director's main Prompt feeds scene 1. Called from the
-  // Director's emit(): only a change of the main prompt is copied (or an empty scene 1 is filled),
-  // so edits made directly in the scene 1 card are not overwritten by unrelated updates.
+  // Without an external prompt link, the Director's main Prompt feeds the scene that will be
+  // generated next (the first unapproved one, marked NEXT) — scene 1, then scene 2 after
+  // scene 1 is approved, and so on. Called from the Director's emit(): only a change of the main
+  // prompt is copied (an empty NEXT scene is filled only when the workflow opens), so direct card
+  // edits and freshly approved scenes are not overwritten by unrelated updates.
   rt.syncMainPrompt = text => {
     const long = rt.state?.long_video;
-    const first = long?.clips?.[0];
+    const index = long?.clips?.findIndex(c => !c.validated) ?? -1;
+    const target = index >= 0 ? long.clips[index] : null;
     const value = String(text || "").trim() ? String(text) : "";
     const previous = rt.lastMainPrompt;
     rt.lastMainPrompt = value;
-    if (!long?.enabled || !first || first.validated || !value || first.prompt === value) return;
+    if (!long?.enabled || !target || !value || target.prompt === value) return;
     const changed = previous !== undefined && previous !== value;
-    if (!changed && String(first.prompt || "").trim()) return;
-    first.prompt = value;
-    if (long.cache_owner && rt.cached.includes(first.id)) {
-      // Same as editing the card: the generated scene 1 no longer matches its prompt.
-      rt.cached = [];
-      request("/director_plus/extender/local_ref_invalidate", { owner_id: long.cache_owner, generation_mode: "ref2va", motion_context: true, clip_index: 0, validated: false }).catch(() => {});
+    if (!changed && (previous !== undefined || String(target.prompt || "").trim())) return;
+    target.prompt = value;
+    if (long.cache_owner && rt.cached.includes(target.id)) {
+      // Same as editing the card: the generated scene no longer matches its prompt.
+      rt.cached = rt.cached.filter(id => long.clips.findIndex(c => c.id === id) < index);
+      // Drop the now-stale approve checkboxes right away; a full re-render would steal the typing focus.
+      (rt.validateEls || []).forEach((el, k) => { if (k >= index) el?.remove(); });
+      request("/director_plus/extender/local_ref_invalidate", { owner_id: long.cache_owner, generation_mode: "ref2va", motion_context: true, clip_index: index, validated: false }).catch(() => {});
     }
-    const box = rt.scene1PromptEl;
+    const box = rt.nextPromptEl;
     if (box?.isConnected && document.activeElement !== box) box.value = value;
   };
 
@@ -501,6 +506,8 @@ export function renderLongVideo(node, state, emit) {
     settle();
   }, 0);
 
+  rt.nextPromptEl = null;
+  rt.validateEls = [];
   s.clips.forEach((c, i) => {
     const span = spans.find(x => x.id === c.id);
     const available = rt.cached.includes(c.id) || (!rt.cacheChecked && !!span);
@@ -518,13 +525,15 @@ export function renderLongVideo(node, state, emit) {
 
     const head = element("div", null, card); head.className = "dl-card-head";
     element("strong", `장면 ${i + 1}`, head).className = "dl-card-title";
-    if (!c.validated && s.clips.slice(0, i).every(x => x.validated)) element("span", "● NEXT", head).className = "dl-next";
+    const isNextScene = !c.validated && s.clips.slice(0, i).every(x => x.validated);
+    if (isNextScene) element("span", "● NEXT", head).className = "dl-next";
     element("span", null, head).className = "dl-spacer";
     // Validated checkbox, same rules as the Extender: approval is a contiguous
     // prefix, and unticking keeps the cached segment so it can be re-ticked.
     const canValidate = c.validated || (available && s.clips.slice(0, i).every(x => x.validated));
     if (canValidate || (available && !c.validated)) {
       const toggle = element("label", null, head); toggle.className = "dl-validate" + (c.validated ? " on" : "");
+      rt.validateEls[i] = toggle;
       const box = element("input", null, toggle); box.type = "checkbox"; box.checked = !!c.validated;
       element("span", c.validated ? "승인 완료" : "승인", toggle);
       box.disabled = rt.busy || rt.running || !canValidate;
@@ -583,9 +592,9 @@ export function renderLongVideo(node, state, emit) {
     const useExternal = c.use_external_prompt ?? !String(c.prompt || "").trim();
     const promptHead = element("div", null, card); promptHead.className = "dl-card-row";
     element("span", "프롬프트", promptHead).className = "dl-label";
-    if (i === 0 && !node.__directorPlusH3HasExternalPrompt?.()) {
+    if (isNextScene && !node.__directorPlusH3HasExternalPrompt?.()) {
       const linked = element("span", "↔ 아래 Prompt 연동", promptHead); linked.className = "dl-linked";
-      linked.title = "외부 프롬프트가 연결되지 않은 동안, 노드 아래쪽 Prompt를 고치면 장면 1 프롬프트에 자동으로 들어갑니다.";
+      linked.title = "외부 프롬프트가 연결되지 않은 동안, 노드 아래쪽 Prompt를 고치면 다음에 생성할 장면(NEXT)의 프롬프트에 자동으로 들어갑니다.";
     }
     element("span", null, promptHead).className = "dl-spacer";
     element("span", "외부 프롬프트", promptHead).className = "dl-label";
@@ -595,7 +604,7 @@ export function renderLongVideo(node, state, emit) {
     externalToggle.title = "ON: 실행할 때 Prompt Freeze의 출력을 이 장면에 저장합니다. OFF: 장면 프롬프트를 유지합니다.";
 
     const prompt = element("textarea", null, card); prompt.className = "dl-card-prompt"; prompt.value = c.prompt || "";
-    if (i === 0) rt.scene1PromptEl = prompt;
+    if (isNextScene) rt.nextPromptEl = prompt;
     prompt.placeholder = useExternal ? "ON: 실행 시 외부 프롬프트를 가져와 저장합니다." : "이 장면에 사용할 프롬프트";
     // Read-only rather than disabled, so an approved scene's long prompt can still be scrolled and read.
     prompt.readOnly = locked;
