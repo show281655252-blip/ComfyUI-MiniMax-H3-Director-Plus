@@ -15,9 +15,11 @@ function element(tag, text, parent) {
 
 }
 
-function newClip() {
+// New scenes use the external prompt only when one is actually linked to the node;
+// otherwise they start with it OFF and keep their own (or the synced main) prompt.
+function newClip(useExternal = true) {
 
-  return { id: crypto.randomUUID(), name: "", prompt: "", use_external_prompt: true, duration: 5, seed: Math.floor(Math.random() * 1e12), seed_mode: "fixed", validated: false, loras: [] };
+  return { id: crypto.randomUUID(), name: "", prompt: "", use_external_prompt: useExternal, duration: 5, seed: Math.floor(Math.random() * 1e12), seed_mode: "fixed", validated: false, loras: [] };
 
 }
 
@@ -117,8 +119,9 @@ function installStyle() {
 
 export function renderLongVideo(node, state, emit) {
   installStyle();
+  const hasExternal = () => Boolean(node.__directorPlusH3HasExternalPrompt?.());
 
-  if (!state.long_video) state.long_video = { version: 1, project_id: crypto.randomUUID(), enabled: false, start_mode: "new", source_video: "", run_mode: "clip_by_clip", context_length: "22", clips: [newClip()] };
+  if (!state.long_video) state.long_video = { version: 1, project_id: crypto.randomUUID(), enabled: false, start_mode: "new", source_video: "", run_mode: "clip_by_clip", context_length: "22", clips: [newClip(hasExternal())] };
 
   const rt = node.__directorLong || (node.__directorLong = { selected: 0, cached: [], busy: false, message: "" });
 
@@ -419,7 +422,7 @@ export function renderLongVideo(node, state, emit) {
   element("strong", "장면 타임라인", title);
 
   element("span", null, title).className = "dl-spacer";
-  button(title, "+ 장면 추가", () => { s.clips.push(newClip()); rt.selected = s.clips.length - 1; });
+  button(title, "+ 장면 추가", () => { s.clips.push(newClip(hasExternal())); rt.selected = s.clips.length - 1; });
 
   // A reopened workflow only knows its last preview; check the disk cache once so scene
   // status and approvals match what can really be reused (runs and .ext loads already sync).
@@ -447,7 +450,7 @@ export function renderLongVideo(node, state, emit) {
     s.project_id = crypto.randomUUID();
     delete s.cache_owner;
     delete s.last_preview;
-    s.clips = [newClip()];
+    s.clips = [newClip(hasExternal())];
     Object.assign(rt, { selected: 0, cached: [], needsRegeneration: [], cacheChecked: true, preview: null, spans: null, scrollLeft: 0, scrollTo: null });
   });
   clearButton.className = "dl-red";
