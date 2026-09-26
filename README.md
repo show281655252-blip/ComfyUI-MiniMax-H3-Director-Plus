@@ -66,6 +66,10 @@ PyTorch/torchaudio를 다른 버전으로 교체하지 말고 ComfyUI 배포본�
 - 생성이 끝나면 LLM을 메모리에서 내린 뒤 영상 생성을 시작하므로 LLM과 영상 모델이 VRAM에 함께 올라가지 않습니다.
 - 원본 DaSiWa의 Prompt Forge와는 API 경로·설정·저장 키가 분리되어 함께 설치해도 서로 간섭하지 않습니다.
 
+### ComfyUI-MinimaxH3-PromptDirector 연동
+
+[ComfyUI-MinimaxH3-PromptDirector](https://github.com/Bokuwako/ComfyUI-MinimaxH3-PromptDirector)가 설치돼 있으면, 그 Prompt Writer의 `FOLLOW_DIRECTOR` 모드가 Director Plus 노드도 Director로 인식합니다. Writer가 Director Plus의 mode(REF2VA 등)·길이·레퍼런스 이미지를 읽어 그 모드 형식으로 프롬프트를 씁니다. PromptDirector 파일은 수정하지 않으며(실행 시 Director 탐색만 넓힘), 연동이 안 되면 콘솔에 경고가 나옵니다. 이 경우 Writer의 mode를 직접 지정하세요.
+
 ## 기존 워크플로우 변환
 
 0.1 패치의 Director 노드를 쓰던 워크플로우는 복사본으로 변환할 수 있습니다.
