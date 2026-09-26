@@ -2,6 +2,14 @@
 
 ComfyUI용 MiniMax H3 장면 타임라인·긴 영상(Ref2VA + Motion Context) 커스텀 노드입니다. 원본 DaSiWa·Extender 파일을 수정하지 않는 독립 노드이며, 필요한 원본 코드 일부를 라이선스 고지와 함께 내부에 포함합니다.
 
+### 긴 영상 LBH 업스케일
+
+`DirectorPlusGenerate`의 선택 입력 `lbh_enabled` / `lbh_scale`을 Settings의 LBH ON/OFF / 배율에 연결하면 긴 영상에도 LBH를 적용합니다. 기존 워크플로우는 입력이 없으면 OFF로 동작합니다. 기본 해상도로 전체 스텝 중 마지막 4스텝을 제외하고 샘플링한 뒤, denoised 잠재값을 LBH로 확대하고 마지막 4스텝을 고해상도에서 보정합니다(최소 5스텝 필요).
+
+`Comfyui_Minimax_h3_latent_Upscaler`와 `models/latent_upscale_models/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors`가 필요합니다. 다른 호환 모델은 `lbh_model_name`에 지정하세요. BF16, 시간 청크, 32px 정렬을 사용하며 실제 출력 크기는 정렬에 따라 배율 계산값과 조금 다를 수 있습니다. 오디오의 공간 크기는 변경하지 않습니다.
+
+다음 장면은 저해상도 단계에서 이전 장면의 Motion Context를 축소해 사용하고, 고해상도 보정 단계에서는 이전 장면의 원래 고해상도 문맥을 사용합니다. LBH ON/OFF·배율·모델명이 바뀌면 캐시를 분리하고 승인을 초기화합니다. 기존 디스크 캐시는 삭제하지 않습니다. `.ext`에는 LBH 캐시 식별 정보가 저장되지만 실행 설정은 워크플로우에도 함께 저장해야 합니다. 고해상도 보정은 GPU 메모리와 생성 시간이 추가로 필요합니다.
+
 > 비공식 알파 버전입니다. 2장면 연속 생성(승인 → Motion Context → 합치기)과 `.ext` 저장·복원을 GPU에서 확인했습니다. 검증 범위는 아래 [검증 현황](#검증-현황)을 참고하세요.
 > 이전 0.1.0-rc1(버전 고정 패치 설치 방식)은 [`v0.1.0-rc1` 태그](../../tree/v0.1.0-rc1)에서 받을 수 있습니다 (`git checkout v0.1.0-rc1`).
 
@@ -81,7 +89,9 @@ python migrate_workflow.py "기존.json" "DirectorPlus_변환본.json"
   - `.ext` 저장 → 불러오기: 새 프로젝트 ID로 복원, 장면 설정·승인 상태·생성 캐시 유지
   - 복원한 프로젝트 재실행: 승인된 장면은 다시 샘플링하지 않고 캐시로 같은 영상 출력
 
-아직 확인하지 않은 것: 고해상도·긴 장면(5초 이상), 3장면 이상, Full Batch 모드, Linux/macOS.
+- 긴 영상 LBH (2026-09-26, RTX 4090, HyperFlow 8스텝): 256×256 → 384×384, 2장면 생성/승인/Motion Context/합치기/`.ext` 복원/캐시 재실행 통과. Full Batch 2장면 256×288 → 384×448 및 LBH OFF 전환 시 256×288 복귀·캐시 분리 통과. 화질 개선 정도를 비교 평가한 테스트는 아닙니다.
+
+아직 확인하지 않은 것: 고해상도·긴 장면(5초 이상), 3장면 이상, Linux/macOS.
 
 ## 라이선스
 

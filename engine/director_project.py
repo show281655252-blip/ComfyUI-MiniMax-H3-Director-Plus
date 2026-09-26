@@ -20,6 +20,8 @@ from .motion_context_disk import _color_timeline, _comfy_media_item
 def project_owner(state, widgets):
     width, height = extender._manual_effective_resolution(int(widgets["width"]), int(widgets["height"]))
     signature = json.dumps([None, width, height, state.get("context_length", "22")])
+    if state.get("lbh"):
+        signature = json.dumps([None, width, height, state.get("context_length", "22"), state["lbh"]])
     return "director_" + state["project_id"] + "_" + hashlib.sha256(signature.encode()).hexdigest()[:12]
 
 

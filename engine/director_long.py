@@ -33,6 +33,7 @@ from server import PromptServer
 from comfy_extras.nodes_minimax_h3 import _encode_ref_audio
 
 from .extender import MiniMaxH3Extender, _manual_effective_resolution
+from . import director_lbh
 
 from .motion_context_disk import MiniMaxH3MotionContextDiskFinalDecode, _find_ffmpeg, _comfy_media_item, _video_output_from_path
 
@@ -130,6 +131,8 @@ def prepare_state(guide):
     source_key = (str(path), path.stat().st_size, path.stat().st_mtime_ns) if path else None
 
     signature = json.dumps([source_key, guide["width"], guide["height"], state.get("context_length", "22")])
+    if state.get("lbh"):
+        signature = json.dumps([source_key, guide["width"], guide["height"], state.get("context_length", "22"), state["lbh"]])
 
     owner = "director_" + state["project_id"] + "_" + hashlib.sha256(signature.encode()).hexdigest()[:12]
 
@@ -181,6 +184,10 @@ class DirectorPlusGenerate:
 
             "sampler_name": (comfy.samplers.SAMPLER_NAMES,),
 
+        }, "optional": {
+            "lbh_enabled": ("BOOLEAN", {"default": False}),
+            "lbh_scale": ("FLOAT", {"default": 1.5, "min": 1.0, "max": 4.0, "step": 0.05}),
+            "lbh_model_name": ("STRING", {"default": "minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors"}),
         }}
 
     RETURN_TYPES = ("H3_MOTION_DISK_CACHE",)
@@ -195,13 +202,19 @@ class DirectorPlusGenerate:
 
         return float("nan")
 
-    def generate(self, guide, model, clip, vae, audio_vae, sigmas, sampler_name):
+    def generate(self, guide, model, clip, vae, audio_vae, sigmas, sampler_name,
+                 lbh_enabled=False, lbh_scale=1.5, lbh_model_name="minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors"):
 
         if guide.get("minimax_ref_items"):
 
             raise ValueError("Director long video: use image/video/audio references instead of RefMod files, or turn long video off.")
 
         guide = dict(guide)
+        guide["long_video"] = copy.deepcopy(guide["long_video"])
+        lbh = director_lbh.settings(lbh_enabled, lbh_scale, lbh_model_name)
+        if lbh and len(sigmas) < 6:
+            raise ValueError("Director LBH needs at least 5 sampling steps (base + final 4-step refine).")
+        guide["long_video"]["lbh"] = lbh
 
         guide["width"], guide["height"] = _manual_effective_resolution(guide["width"], guide["height"])
 
@@ -249,7 +262,7 @@ class DirectorPlusGenerate:
 
             generation_mode="ref2va", motion_context=True, ref_pack=pack,
 
-            unique_id=owner, sigmas=sigmas, initial_context=initial_context, **media,
+            unique_id=owner, sigmas=sigmas, initial_context=initial_context, director_lbh=lbh, **media,
 
         )
 
@@ -273,9 +286,7 @@ class DirectorPlusGenerate:
 
         cache["director_source_context"] = int(state.get("context_length", "22"))
 
-        cache["director_width"] = guide["width"]
-
-        cache["director_height"] = guide["height"]
+        cache["director_width"], cache["director_height"] = director_lbh.output_size(guide["width"], guide["height"], lbh)
 
         cache["director_project_id"] = state["project_id"]
 

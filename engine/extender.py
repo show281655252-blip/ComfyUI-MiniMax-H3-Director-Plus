@@ -1827,7 +1827,7 @@ def _sigmas(model, scheduler: str, steps: int, denoise: float):
     return sigmas[-(steps + 1):]
 
 
-def _sample_h3(model, conditioning, latent, seed: int, sampler_name: str, scheduler: str, steps: int, denoise: float, sigmas=None):
+def _sample_h3(model, conditioning, latent, seed: int, sampler_name: str, scheduler: str, steps: int, denoise: float, sigmas=None, denoised=False):
     if sigmas is None and int(steps) < 1:
         raise ValueError("MiniMax H3 Extender: steps must be >= 1.")
 
@@ -1872,6 +1872,11 @@ def _sample_h3(model, conditioning, latent, seed: int, sampler_name: str, schedu
     out.pop("downscale_ratio_spacial", None)
     out.pop("downscale_ratio_temporal", None)
     out["samples"] = samples
+    if denoised and "x0" in x0_output:
+        x0 = x0_output["x0"]
+        if samples.is_nested and not x0.is_nested:
+            x0 = comfy.nested_tensor.NestedTensor(comfy.utils.unpack_latents(x0, [x.shape for x in samples.unbind()]))
+        out["samples"] = model.model.process_latent_out(x0.cpu())
     return out
 
 
@@ -4868,11 +4873,15 @@ class MiniMaxH3Extender:
         resolved_width = int(resolution["width"])
         resolved_height = int(resolution["height"])
 
+        lbh = kwargs.get("director_lbh")
+        from . import director_lbh
+        cache_width, cache_height = director_lbh.output_size(resolved_width, resolved_height, lbh)
+
         requested_mismatch = bool(
             cache_has_segments
             and (
-                int(cache_resolution["width"]) != resolved_width
-                or int(cache_resolution["height"]) != resolved_height
+                int(cache_resolution["width"]) != cache_width
+                or int(cache_resolution["height"]) != cache_height
             )
         )
         previous_cache_resolution = dict(cache_resolution) if requested_mismatch else None
@@ -5256,6 +5265,7 @@ class MiniMaxH3Extender:
             )
 
             trim_frames = None
+            base_positive = positive
             context_proxy = previous_proxy if i > 0 else kwargs.get("initial_context")
             if i > 0 or context_proxy is not None:
                 if context_proxy is None:
@@ -5265,7 +5275,7 @@ class MiniMaxH3Extender:
                 positive, trim_frames, _, _, _ = motion.apply(
                     positive,
                     latent,
-                    context_proxy,
+                    director_lbh.resize_context(context_proxy, resolved_width, resolved_height) if lbh else context_proxy,
                     str(context_length),
                     int(audio_context_length),
                 )
@@ -5287,8 +5297,20 @@ class MiniMaxH3Extender:
                 str(scheduler),
                 int(steps),
                 float(denoise),
-                sigmas=kwargs.get("sigmas"),
+                sigmas=kwargs.get("sigmas")[:-4] if lbh else kwargs.get("sigmas"),
+                denoised=bool(lbh),
             )
+
+            if lbh:
+                sampled = director_lbh.upscale_latent(sampled, lbh)
+                positive = director_lbh.resize_conditioning(
+                    base_positive, resolved_width, resolved_height, cache_width, cache_height)
+                if context_proxy is not None:
+                    positive, _, _, _, _ = motion.apply(
+                        positive, sampled, context_proxy, str(context_length), int(audio_context_length))
+                sampled = _sample_h3(
+                    clip_model, positive, sampled, cfg["seed"], str(sampler_name),
+                    str(scheduler), 4, float(denoise), sigmas=kwargs["sigmas"][-5:])
 
             result = disk_join.join(
                 samples=sampled,
@@ -5312,7 +5334,7 @@ class MiniMaxH3Extender:
             # cache used by Clip-by-Clip. This turns every completed Full-Batch
             # clip into a real resumable checkpoint rather than postponing one
             # giant decode pass until the end.
-            del sampled, positive, latent, clip_model, clip_text_encoder
+            del sampled, positive, base_positive, latent, clip_model, clip_text_encoder
 
             if str(run_mode) == "full_batch":
                 _send_extender_progress(

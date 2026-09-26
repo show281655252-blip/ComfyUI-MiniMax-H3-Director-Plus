@@ -260,7 +260,8 @@ export function renderLongVideo(node, state, emit) {
 
   select(top, ["5", "22", "39", "56"].map(v => [v, v]), s.context_length, async v => { await invalidate(0); s.context_length = v; });
 
-  element("small", "샘플러 / HyperFlow: Settings 설정 사용 · 24 fps", top);
+  element("small", "샘플러 / HyperFlow / LBH: Settings 설정 사용 · 24 fps", top);
+  element("small", "LBH ON: 기본 해상도 생성 → 확대 → 마지막 4스텝 보정 · 설정 변경 시 재생성", top);
 
   if (s.source_mode_enabled !== false) {
   const source = row();
@@ -781,4 +782,3 @@ api.addEventListener("execution_error", finished);
 api.addEventListener("execution_interrupted", finished);
 
 api.addEventListener("executing", event => { if (event.detail == null || event.detail?.node === null) finished(); });
-
