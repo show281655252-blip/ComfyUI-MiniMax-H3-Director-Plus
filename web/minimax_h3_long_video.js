@@ -82,6 +82,10 @@ function installStyle() {
   .dp-h3 .dl-panel .dl-pause-icon{display:inline-block;width:12px;height:14px;border-left:4px solid currentColor;border-right:4px solid currentColor;flex-shrink:0}
   .dp-h3 .dl-panel .dl-status.approved{border-color:#327547;background:#103722;color:#82f595}
   .dp-h3 .dl-panel .dl-status.review{border-color:#16bedf;background:#123b4b;color:#7feeff}
+  .dp-h3 .dl-panel .dl-validate{display:inline-flex;align-items:center;gap:7px;border:1px solid #16bedf;background:#123b4b;color:#7feeff;border-radius:99px;padding:4px 11px 4px 8px;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;user-select:none}
+  .dp-h3 .dl-panel .dl-validate.on{border-color:#327547;background:#103722;color:#82f595}
+  .dp-h3 .dl-panel .dl-validate input{width:16px!important;height:16px!important;margin:0;padding:0!important;accent-color:#42c976;cursor:pointer}
+  .dp-h3 .dl-panel .dl-validate:has(input:disabled){opacity:.5;cursor:default}
   .dp-h3 .dl-panel .dl-preview{width:100%;height:320px;object-fit:contain;background:#0b151c;border-radius:6px;border:1px solid #293e48}
   .dp-h3 .dl-panel .dl-empty{display:flex;align-items:center;justify-content:center;color:#80919d;font-size:14px}
   .dp-h3 .dl-panel .dl-muted{color:#adc0ce;font-size:12px}
@@ -163,6 +167,15 @@ export function renderLongVideo(node, state, emit) {
     rt.cacheChecked = true;
     rt.cached = rt.cached.filter(id => s.clips.findIndex(c => c.id === id) < index);
 
+  };
+
+  // Tick/untick approval without touching the cache (Extender "Validated" behaviour).
+  const setValidated = async (index, validated) => {
+    if (!s.cache_owner) throw new Error("먼저 이 장면을 생성하세요.");
+    const result = await request("/director_plus/extender/local_ref_invalidate", { owner_id: s.cache_owner, generation_mode: "ref2va", motion_context: true, clip_index: index, validated });
+    if (validated && !result.found) throw new Error("먼저 이 장면을 생성하세요.");
+    if (validated) s.clips[index].validated = true;
+    else for (let i = index; i < s.clips.length; i++) s.clips[i].validated = false;
   };
 
   const top = row(section());
@@ -390,12 +403,29 @@ export function renderLongVideo(node, state, emit) {
     });
     const head = element("div", null, card); head.className = "dl-card-head";
     button(head, `장면 ${i + 1} · ${c.duration}초`, () => { rt.selected = i; });
-    const badge = element("span", label, head); badge.className = "dl-status " + (c.validated ? "approved" : available ? "review" : "");
-    if (!c.validated && !available && !needsRegeneration) {
-      badge.textContent = "";
-      const pause = element("span", null, badge); pause.className = "dl-pause-icon";
-      pause.setAttribute("aria-hidden", "true");
-      element("span", "대기", badge);
+    // Validated checkbox, same rules as the Extender: approval is a contiguous
+    // prefix, and unticking keeps the cached segment so it can be re-ticked.
+    const canValidate = c.validated || (available && s.clips.slice(0, i).every(x => x.validated));
+    if (canValidate || (available && !c.validated)) {
+      const toggle = element("label", null, head); toggle.className = "dl-validate" + (c.validated ? " on" : "");
+      const box = element("input", null, toggle); box.type = "checkbox"; box.checked = !!c.validated;
+      element("span", c.validated ? "승인 완료" : "승인", toggle);
+      box.disabled = rt.busy || rt.running || !canValidate;
+      toggle.title = canValidate ? (c.validated ? "클릭하면 승인을 해제합니다. 이후 장면의 승인도 함께 해제됩니다." : "클릭하면 이 장면을 승인합니다.") : "앞 장면을 먼저 승인하세요.";
+      box.onchange = async () => {
+        if (rt.busy || rt.running) return;
+        rt.busy = true;
+        try { await setValidated(i, box.checked); rt.message = ""; } catch (e) { rt.message = e.message; }
+        finally { rt.busy = false; save(); refresh(); }
+      };
+    } else {
+      const badge = element("span", label, head); badge.className = "dl-status";
+      if (!needsRegeneration) {
+        badge.textContent = "";
+        const pause = element("span", null, badge); pause.className = "dl-pause-icon";
+        pause.setAttribute("aria-hidden", "true");
+        element("span", "대기", badge);
+      }
     }
     if (preview && span && available) {
       const video = element("video", null, card); video.className = "dl-preview";
@@ -492,11 +522,7 @@ export function renderLongVideo(node, state, emit) {
 
     const approve = button(actions, "승인하고 다음 장면", async () => {
 
-      const result = await request("/director_plus/extender/local_ref_invalidate", { owner_id: s.cache_owner, generation_mode: "ref2va", motion_context: true, clip_index: rt.selected, validated: true });
-
-      if (!result.found) throw new Error("먼저 이 장면을 생성하세요.");
-
-      current.validated = true;
+      await setValidated(rt.selected, true);
 
       const hasNext = rt.selected < s.clips.length - 1;
 
