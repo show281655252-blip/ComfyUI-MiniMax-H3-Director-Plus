@@ -3,11 +3,36 @@ import { app } from "../../scripts/app.js";
 // "LBH 8+4" only means something while LBH itself is on. On any node (usually the
 // Settings subgraph) that exposes both widgets, LBH OFF forces 8+4 OFF and greys it
 // out; LBH ON gives back the value it had before (ON when unknown, e.g. opened while OFF).
-// Promoted subgraph widgets are recreated on re-render, so state is kept per node and
-// re-applied on a short poll instead of being attached to widget objects.
+//
+// Subgraph widgets are projections rebuilt on every render (hover, focus...). Their real
+// state (value, disabled) lives in the frontend's "widgetValue" store keyed by widgetId,
+// so the lock is written there; a flag set on the projection alone is lost on re-render.
 const LBH = "lbh_latent_upscale_enabled";
 const FULL = "lbh_full_first_pass";
 const memory = new WeakMap();
+let widgetStore;
+
+function store() {
+    if (widgetStore !== undefined) return widgetStore;
+    const root = document.querySelector("#vue-app") || [...document.querySelectorAll("body *")].find((e) => e.__vue_app__);
+    const stores = root?.__vue_app__?.config?.globalProperties?.$pinia?._s;
+    widgetStore = stores?.get("widgetValue") ?? null;
+    return widgetStore;
+}
+
+function setDisabled(widget, disabled) {
+    const state = widget.widgetId ? store()?.getWidget?.(widget.widgetId) : null;
+    let changed = false;
+    if (state && Boolean(state.disabled) !== disabled) {
+        state.disabled = disabled;
+        changed = true;
+    }
+    if (Boolean(widget.disabled) !== disabled) {
+        widget.disabled = disabled;
+        changed = true;
+    }
+    return changed;
+}
 
 function sync(node) {
     const lbh = node.widgets?.find((w) => w.name === LBH);
@@ -19,15 +44,16 @@ function sync(node) {
         memory.set(node, state);
     }
     const on = Boolean(lbh.value);
+    let changed = state.lbh !== on;
     if (on && !state.lbh) full.value = state.remembered;
     if (on) {
         state.remembered = Boolean(full.value);
-        if (full.disabled) full.disabled = false;
-    } else {
-        if (full.value) full.value = false;
-        if (!full.disabled) full.disabled = true;
+    } else if (full.value) {
+        full.value = false;
+        changed = true;
     }
-    if (state.lbh !== on) node.setDirtyCanvas?.(true, true);
+    changed = setDisabled(full, !on) || changed;
+    if (changed) node.setDirtyCanvas?.(true, true);
     state.lbh = on;
 }
 
