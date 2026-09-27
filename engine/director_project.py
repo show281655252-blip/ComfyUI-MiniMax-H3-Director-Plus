@@ -22,6 +22,8 @@ def project_owner(state, widgets):
     signature = json.dumps([None, width, height, state.get("context_length", "22")])
     if state.get("lbh"):
         signature = json.dumps([None, width, height, state.get("context_length", "22"), state["lbh"]])
+    if state.get("audio_regen"):
+        signature = json.dumps([signature, state["audio_regen"]])
     return "director_" + state["project_id"] + "_" + hashlib.sha256(signature.encode()).hexdigest()[:12]
 
 

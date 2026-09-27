@@ -5298,8 +5298,8 @@ class MiniMaxH3Extender:
                 str(scheduler),
                 int(steps),
                 float(denoise),
-                sigmas=kwargs.get("sigmas")[:-4] if lbh else kwargs.get("sigmas"),
-                denoised=bool(lbh),
+                sigmas=kwargs.get("sigmas")[:-4] if lbh and not director_lbh.full_first_pass(lbh) else kwargs.get("sigmas"),
+                denoised=bool(lbh) and not director_lbh.full_first_pass(lbh),
             )
 
             if lbh:
@@ -5312,6 +5312,17 @@ class MiniMaxH3Extender:
                 sampled = _sample_h3(
                     clip_model, positive, sampled, cfg["seed"], str(sampler_name),
                     str(scheduler), 4, float(denoise), sigmas=kwargs["sigmas"][-5:])
+
+            audio_regen = kwargs.get("director_audio_regen")
+            if audio_regen:
+                from . import director_audio_regen
+                regen_model, _ = _apply_per_clip_loras(self, audio_regen["model"], clip, cfg.get("loras"), i)
+                sampled = director_audio_regen.regenerate(
+                    regen_model, base_positive, sampled, context_proxy, motion,
+                    str(context_length), int(audio_context_length),
+                    resolved_width, resolved_height, vae, cfg["seed"], str(sampler_name),
+                    audio_regen["config"], _sample_h3)
+                del regen_model
 
             result = disk_join.join(
                 samples=sampled,

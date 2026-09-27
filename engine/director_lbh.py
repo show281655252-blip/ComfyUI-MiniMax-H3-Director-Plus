@@ -7,7 +7,8 @@ import nodes
 import folder_paths
 
 
-def settings(enabled=False, scale=1.5, model_name='minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors'):
+def settings(enabled=False, scale=1.5, model_name='minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors',
+             full_first_pass=False):
     if not enabled:
         return None
     scale = float(scale)
@@ -17,7 +18,16 @@ def settings(enabled=False, scale=1.5, model_name='minimax_h3_latent_upscaler_3d
         raise ValueError('Director LBH: install Comfyui_Minimax_h3_latent_Upscaler first.')
     if not folder_paths.get_full_path('latent_upscale_models', model_name):
         raise ValueError(f'Director LBH: missing model in models/latent_upscale_models: {model_name}')
-    return {'version': 2, 'scale': scale, 'model_name': str(model_name), 'refine_steps': 4}
+    config = {'version': 2, 'scale': scale, 'model_name': str(model_name), 'refine_steps': 4}
+    if full_first_pass:
+        # Run the whole schedule at base resolution, then refine with its last 4 steps (8+4).
+        # Only added when on, so existing 4+4 caches keep their owner.
+        config['first_pass'] = 'full'
+    return config
+
+
+def full_first_pass(config):
+    return bool(config and config.get('first_pass') == 'full')
 
 
 def output_size(width, height, config):
