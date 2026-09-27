@@ -38,8 +38,12 @@ function innerWidgets(node, name) {
 function setDisabled(node, widget, disabled) {
     const state = widget.widgetId ? store()?.getWidget?.(widget.widgetId) : null;
     let changed = false;
+    // Setting the promoted value does not reach these, and a re-render copies their
+    // value back (a stale `true` flashed the row on after LBH was switched off).
+    const value = Boolean(widget.value);
     for (const inner of innerWidgets(node, FULL)) {
         if (Boolean(inner.disabled) !== disabled) inner.disabled = disabled;
+        if (Boolean(inner.value) !== value) inner.value = value;
     }
     if (state && Boolean(state.disabled) !== disabled) {
         state.disabled = disabled;
