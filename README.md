@@ -4,6 +4,10 @@ ComfyUI용 MiniMax H3 장면 타임라인·긴 영상(Ref2VA + Motion Context) �
 
 ### 긴 영상 LBH 업스케일
 
+LBH 고해상도 보정의 참조 이미지·키프레임은 **픽셀 공간에서 크기를 변경한 후 Video VAE로 다시 인코딩**합니다. H3 잠재값을 bilinear로 직접 확대하면 격자 무늬와 잔상이 생길 수 있습니다. 원본 픽셀이 없는 RefMod/영상 문맥은 디코딩 후 재인코딩하며, 오디오와 프레임 위치는 유지합니다. 이 처리 변경 전의 LBH 캐시는 별도로 보존되며 새로 생성해야 합니다.
+
+단일 영상의 기존 `MiniMaxH3ConditioningUpscale`은 `DirectorPlusConditioningMatchLatent`로 교체하고 `conditioning`, 확대 전 `base_latent`, 실제 LBH 출력 `target_latent`, Video `vae`, Director `guide`를 연결하세요. 이 노드는 실제 출력 격자에 맞추므로 LBH와 조건 확대의 반올림 차이도 방지합니다. Python 변경 적용에는 ComfyUI 재시작이 필요합니다.
+
 `DirectorPlusGenerate`의 선택 입력 `lbh_enabled` / `lbh_scale`을 Settings의 LBH ON/OFF / 배율에 연결하면 긴 영상에도 LBH를 적용합니다. 기존 워크플로우는 입력이 없으면 OFF로 동작합니다. 기본 해상도로 전체 스텝 중 마지막 4스텝을 제외하고 샘플링한 뒤, denoised 잠재값을 LBH로 확대하고 마지막 4스텝을 고해상도에서 보정합니다(최소 5스텝 필요).
 
 `Comfyui_Minimax_h3_latent_Upscaler`와 `models/latent_upscale_models/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors`가 필요합니다. 다른 호환 모델은 `lbh_model_name`에 지정하세요. BF16, 시간 청크, 32px 정렬을 사용하며 실제 출력 크기는 정렬에 따라 배율 계산값과 조금 다를 수 있습니다. 오디오의 공간 크기는 변경하지 않습니다.

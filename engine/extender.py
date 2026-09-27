@@ -1595,6 +1595,7 @@ def _prepare_shared_refs(
                 "latent_h": th // 16,
                 "latent_w": tw // 16,
                 "latent": z,
+                "_director_source_pixels": img[:1],
             }
         )
 
@@ -5275,7 +5276,7 @@ class MiniMaxH3Extender:
                 positive, trim_frames, _, _, _ = motion.apply(
                     positive,
                     latent,
-                    director_lbh.resize_context(context_proxy, resolved_width, resolved_height) if lbh else context_proxy,
+                    director_lbh.resize_context(context_proxy, resolved_width, resolved_height, vae) if lbh else context_proxy,
                     str(context_length),
                     int(audio_context_length),
                 )
@@ -5304,7 +5305,7 @@ class MiniMaxH3Extender:
             if lbh:
                 sampled = director_lbh.upscale_latent(sampled, lbh)
                 positive = director_lbh.resize_conditioning(
-                    base_positive, resolved_width, resolved_height, cache_width, cache_height)
+                    base_positive, resolved_width, resolved_height, cache_width, cache_height, vae)
                 if context_proxy is not None:
                     positive, _, _, _, _ = motion.apply(
                         positive, sampled, context_proxy, str(context_length), int(audio_context_length))
