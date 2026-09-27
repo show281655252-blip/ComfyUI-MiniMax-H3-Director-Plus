@@ -20,9 +20,27 @@ function store() {
     return widgetStore;
 }
 
-function setDisabled(widget, disabled) {
+// A re-render re-registers the promoted widget from the widgets it is linked to inside
+// the subgraph, so those must carry the lock too or it flashes off on every hover.
+function innerWidgets(node, name) {
+    const subgraph = node.subgraph;
+    const input = subgraph?.inputs?.find((i) => i.name === name);
+    if (!input) return [];
+    return (input.linkIds || []).flatMap((id) => {
+        const link = subgraph.getLink?.(id) ?? subgraph.links?.get?.(id) ?? subgraph.links?.[id];
+        const target = link && subgraph.getNodeById?.(link.target_id);
+        const slot = target?.inputs?.[link.target_slot];
+        const widget = slot && target.getWidgetFromSlot?.(slot);
+        return widget ? [widget] : [];
+    });
+}
+
+function setDisabled(node, widget, disabled) {
     const state = widget.widgetId ? store()?.getWidget?.(widget.widgetId) : null;
     let changed = false;
+    for (const inner of innerWidgets(node, FULL)) {
+        if (Boolean(inner.disabled) !== disabled) inner.disabled = disabled;
+    }
     if (state && Boolean(state.disabled) !== disabled) {
         state.disabled = disabled;
         changed = true;
@@ -52,7 +70,7 @@ function sync(node) {
         full.value = false;
         changed = true;
     }
-    changed = setDisabled(full, !on) || changed;
+    changed = setDisabled(node, full, !on) || changed;
     if (changed) node.setDirtyCanvas?.(true, true);
     state.lbh = on;
 }
