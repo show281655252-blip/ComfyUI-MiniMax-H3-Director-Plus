@@ -79,6 +79,44 @@ function sync(node) {
     state.lbh = on;
 }
 
+// Root cause of the hover flash: a subgraph node rebuilds its promoted widget views on
+// re-render, and a fresh view has no `disabled` of its own, so it draws unlocked until the
+// poll runs again. Give every new view a `disabled` backed by the widget store, so a
+// rebuilt view is locked from its first frame.
+let projectionPatched = false;
+function patchProjection(node) {
+    if (projectionPatched || typeof node._projectPromotedWidget !== "function") return;
+    let proto = Object.getPrototypeOf(node);
+    while (proto && !Object.prototype.hasOwnProperty.call(proto, "_projectPromotedWidget")) {
+        proto = Object.getPrototypeOf(proto);
+    }
+    if (!proto) return;
+    projectionPatched = true;
+    const original = proto._projectPromotedWidget;
+    proto._projectPromotedWidget = function (...args) {
+        const view = original.apply(this, args);
+        if (view && view.widgetId && !Object.getOwnPropertyDescriptor(view, "disabled")?.get) {
+            const id = view.widgetId;
+            let own = view.disabled;
+            delete view.disabled;
+            Object.defineProperty(view, "disabled", {
+                configurable: true,
+                enumerable: true,
+                get() {
+                    const state = store()?.getWidget?.(id);
+                    return state ? Boolean(state.disabled) : Boolean(own);
+                },
+                set(value) {
+                    own = value;
+                    const state = store()?.getWidget?.(id);
+                    if (state) state.disabled = Boolean(value);
+                },
+            });
+        }
+        return view;
+    };
+}
+
 function nodes() {
     const graphs = new Set([app.graph, app.canvas?.graph].filter(Boolean));
     return [...graphs].flatMap((graph) => graph._nodes || graph.nodes || []);
@@ -88,7 +126,10 @@ app.registerExtension({
     name: "DirectorPlus.LbhFullPassToggle",
     setup() {
         setInterval(() => {
-            for (const node of nodes()) sync(node);
+            for (const node of nodes()) {
+                patchProjection(node);
+                sync(node);
+            }
         }, 250);
     },
 });
