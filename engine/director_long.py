@@ -35,7 +35,6 @@ from comfy_extras.nodes_minimax_h3 import _encode_ref_audio
 from .extender import MiniMaxH3Extender, _manual_effective_resolution
 from . import director_lbh
 from . import director_audio_regen
-from . import director_refine
 
 from .motion_context_disk import MiniMaxH3MotionContextDiskFinalDecode, _find_ffmpeg, _comfy_media_item, _video_output_from_path
 
@@ -137,8 +136,6 @@ def prepare_state(guide):
         signature = json.dumps([source_key, guide["width"], guide["height"], state.get("context_length", "22"), state["lbh"]])
     if state.get("audio_regen"):
         signature = json.dumps([signature, state["audio_regen"]])
-    if state.get("h3_refine"):
-        signature = json.dumps([signature, state["h3_refine"]])
 
     owner = "director_" + state["project_id"] + "_" + hashlib.sha256(signature.encode()).hexdigest()[:12]
 
@@ -197,8 +194,6 @@ class DirectorPlusGenerate:
             "lbh_full_first_pass": ("BOOLEAN", {"default": False, "tooltip": "LBH 8+4: finish the whole schedule at base resolution, then refine with its last 4 steps."}),
             "audio_regen_enabled": ("BOOLEAN", {"default": False, "tooltip": "Re-sample each scene's audio with the base model (30 steps, denoise 0.5) on a half-size video."}),
             "audio_regen_model": ("MODEL", {"tooltip": "Base model before HyperFlow/turbo LoRAs, with the same sigma shift."}),
-            "h3_refine_enabled": ("BOOLEAN", {"default": False, "tooltip": "Experimental: per-scene H3-Refine, frozen audio/head, hop_tail. Requires ComfyUI-H3-Refine."}),
-            "h3_refine_steps": ("INT", {"default": 2, "min": 1, "max": 20}),
         }}
 
     RETURN_TYPES = ("H3_MOTION_DISK_CACHE",)
@@ -215,8 +210,7 @@ class DirectorPlusGenerate:
 
     def generate(self, guide, model, clip, vae, audio_vae, sigmas, sampler_name,
                  lbh_enabled=False, lbh_scale=1.5, lbh_model_name="minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors",
-                 lbh_full_first_pass=False, audio_regen_enabled=False, audio_regen_model=None,
-                 h3_refine_enabled=False, h3_refine_steps=2):
+                 lbh_full_first_pass=False, audio_regen_enabled=False, audio_regen_model=None):
 
         if guide.get("minimax_ref_items"):
 
@@ -226,12 +220,10 @@ class DirectorPlusGenerate:
         guide["long_video"] = copy.deepcopy(guide["long_video"])
         lbh = director_lbh.settings(lbh_enabled, lbh_scale, lbh_model_name, lbh_full_first_pass)
         audio_regen = director_audio_regen.settings(audio_regen_enabled, audio_regen_model)
-        h3_refine = director_refine.settings(h3_refine_enabled, h3_refine_steps)
         if lbh and len(sigmas) < 6:
             raise ValueError("Director LBH needs at least 5 sampling steps (base + final 4-step refine).")
         guide["long_video"]["lbh"] = lbh
         guide["long_video"]["audio_regen"] = audio_regen
-        guide["long_video"]["h3_refine"] = h3_refine
 
         guide["width"], guide["height"] = _manual_effective_resolution(guide["width"], guide["height"])
 
@@ -280,7 +272,6 @@ class DirectorPlusGenerate:
             generation_mode="ref2va", motion_context=True, ref_pack=pack,
 
             unique_id=owner, sigmas=sigmas, initial_context=initial_context, director_lbh=lbh,
-            director_refine=h3_refine,
             director_audio_regen={"config": audio_regen, "model": audio_regen_model} if audio_regen else None, **media,
 
         )

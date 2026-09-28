@@ -16,10 +16,6 @@ LBH 고해상도 보정의 참조 이미지·키프레임은 **픽셀 공간에�
 
 `audio_regen_enabled`를 켜고 `audio_regen_model`에 **터보/HyperFlow를 적용하기 전의 기본 모델**(같은 Sigma Shift)을 연결하면, 장면마다 영상 잠재값을 0.5배로 줄여 오디오와 다시 합친 뒤 30스텝·denoise 0.5로 재샘플링하고 **오디오만** 교체합니다. 화면은 바뀌지 않고 대사 타이밍도 유지됩니다. 몇 스텝짜리 터보 모델로 만든 오디오의 잡음(험 등)을 줄이는 용도이며, 장면당 시간이 추가로 듭니다. 켜면 캐시가 분리됩니다.
 
-### (실험) 긴 영상 H3-Refine
-
-별도 설치한 [ComfyUI-H3-Refine](https://github.com/dntpi/ComfyUI-H3-Refine)이 있으면 `h3_refine_enabled`(기본 OFF)로 장면마다 영상을 몇 스텝 더 다듬을 수 있습니다. 앞 장면과 겹치는 구간과 오디오는 고정합니다. 화질이 좋아진다는 보장은 없는 실험 기능입니다. 자세한 내용은 [H3_REFINE_EXPERIMENT.md](H3_REFINE_EXPERIMENT.md)를 참고하세요.
-
 `Comfyui_Minimax_h3_latent_Upscaler`와 `models/latent_upscale_models/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors`가 필요합니다. 다른 호환 모델은 `lbh_model_name`에 지정하세요. BF16, 시간 청크, 32px 정렬을 사용하며 실제 출력 크기는 정렬에 따라 배율 계산값과 조금 다를 수 있습니다. 오디오의 공간 크기는 변경하지 않습니다.
 
 다음 장면은 저해상도 단계에서 이전 장면의 Motion Context를 축소해 사용하고, 고해상도 보정 단계에서는 이전 장면의 원래 고해상도 문맥을 사용합니다. LBH ON/OFF·배율·모델명이 바뀌면 캐시를 분리하고 승인을 초기화합니다. 기존 디스크 캐시는 삭제하지 않습니다. `.ext`에는 LBH 캐시 식별 정보가 저장되지만 실행 설정은 워크플로우에도 함께 저장해야 합니다. 고해상도 보정은 GPU 메모리와 생성 시간이 추가로 필요합니다.
