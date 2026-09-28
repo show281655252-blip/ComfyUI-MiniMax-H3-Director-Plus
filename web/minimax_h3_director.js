@@ -93,7 +93,14 @@ function legacyPrompt(state, widgetPrompt) {
   const blocks = Array.isArray(state?.prompt_blocks) ? [...state.prompt_blocks].sort((a, b) => (Number(a?.start) || 0) - (Number(b?.start) || 0) || (Number(a?.order) || 0) - (Number(b?.order) || 0)) : [];
   return [global, ...blocks.filter(block => block?.enabled !== false).map(block => textValue(block?.text)).filter(Boolean)].filter(Boolean).join("\n");
 }
-function viewUrl(path) { return api.apiURL(`/view?filename=${encodeURIComponent(path)}&type=input`); }
+function viewUrl(path) {
+  // Inputs restored from a .ext live in a subfolder (director_projects/media/<hash>.png);
+  // /view needs that as `subfolder`, not inside `filename`.
+  const value = String(path || "").replace(/\\/g, "/");
+  const cut = value.lastIndexOf("/");
+  const params = new URLSearchParams({ filename: cut < 0 ? value : value.slice(cut + 1), subfolder: cut < 0 ? "" : value.slice(0, cut), type: "input" });
+  return api.apiURL(`/view?${params}`);
+}
 function count(state, type) { return state.items.filter(i => i.enabled !== false && i.type === type).length; }
 function idFor(type, n) { return `${type}-${Date.now()}-${n}`; }
 function mediaTypeFor(file) {

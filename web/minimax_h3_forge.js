@@ -96,7 +96,14 @@ function installStyles() {
 }
 
 const el = (tag, props = {}, ...children) => { const n = Object.assign(document.createElement(tag), props); n.append(...children); return n; };
-const viewUrl = path => api.apiURL(`/view?filename=${encodeURIComponent(path)}&type=input`);
+function viewUrl(path) {
+  // Inputs restored from a .ext live in a subfolder (director_projects/media/<hash>.png);
+  // /view needs that as `subfolder`, not inside `filename`.
+  const value = String(path || "").replace(/\\/g, "/");
+  const cut = value.lastIndexOf("/");
+  const params = new URLSearchParams({ filename: cut < 0 ? value : value.slice(cut + 1), subfolder: cut < 0 ? "" : value.slice(0, cut), type: "input" });
+  return api.apiURL(`/view?${params}`);
+}
 const BASE_ROLE = { I2VA: "first frame", FL2VA: "first / last frame", L2VA: "last frame" };
 
 function referencesFor(hook) {
