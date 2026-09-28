@@ -5324,6 +5324,13 @@ class MiniMaxH3Extender:
                     audio_regen["config"], _sample_h3)
                 del regen_model
 
+            refine_config = kwargs.get("director_refine")
+            if refine_config:
+                from . import director_refine
+                sampled = director_refine.refine(
+                    clip_model, base_positive, sampled, resolved_width, resolved_height,
+                    vae, cfg["seed"], kwargs["sigmas"], trim_frames, refine_config)
+
             result = disk_join.join(
                 samples=sampled,
                 trim_frames=trim_frames,
