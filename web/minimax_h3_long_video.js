@@ -457,6 +457,43 @@ export function renderLongVideo(node, state, emit) {
   clearButton.className = "dl-red";
   clearButton.title = "모든 장면을 지우고 빈 장면 1개로 새로 시작합니다.";
 
+  // Bulk approval, same rules as the per-card checkbox: approval is a contiguous prefix of
+  // generated scenes, and un-approving keeps every cached scene so it can be re-approved.
+  const bulkButton = (text, tip, action) => {
+    const b = element("button", text, title);
+    b.title = tip;
+    b.disabled = rt.busy || rt.running;
+    b.onclick = async () => {
+      if (rt.busy || rt.running) return;
+      rt.busy = true;
+      try { rt.message = await action(); } catch (e) { rt.message = e.message; }
+      finally { rt.busy = false; save(); refresh(); }
+    };
+    return b;
+  };
+  bulkButton("전체 승인", "생성된 장면을 앞에서부터 모두 승인합니다. 아직 생성되지 않은 장면에서 멈춥니다.", async () => {
+    const start = s.clips.findIndex(c => !c.validated);
+    if (start < 0) return "이미 모든 장면이 승인되어 있습니다.";
+    let index = start;
+    while (index < s.clips.length && rt.cached.includes(s.clips[index].id)) {
+      await setValidated(index, true);
+      index += 1;
+    }
+    const approved = index - start;
+    rt.selected = Math.min(index, s.clips.length - 1); rt.scrollTo = rt.selected;
+    if (!approved) return `장면 ${start + 1}이 아직 생성되지 않아 승인할 장면이 없습니다.`;
+    return index < s.clips.length
+      ? `장면 ${approved}개 승인 · 장면 ${index + 1}부터는 아직 생성되지 않았습니다.`
+      : `장면 ${approved}개 승인 · 모든 장면 승인 완료`;
+  });
+  bulkButton("전체 승인 해제", "모든 장면의 승인을 해제합니다. 생성된 캐시는 남으므로 다시 승인하면 재생성 없이 승인됩니다.", async () => {
+    const approved = s.clips.filter(c => c.validated).length;
+    if (!approved) return "승인된 장면이 없습니다.";
+    await setValidated(0, false);
+    rt.selected = 0; rt.scrollTo = 0;
+    return `장면 ${approved}개의 승인을 해제했습니다. (캐시는 유지)`;
+  });
+
   const preview = rt.preview || s.last_preview?.video;
   const spans = rt.spans || s.last_preview?.scenes || [];
   rt.selected = Math.max(0, Math.min(rt.selected, s.clips.length - 1));
