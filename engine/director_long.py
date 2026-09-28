@@ -173,6 +173,35 @@ def prepare_state(guide):
 
     return state, path
 
+def describe_settings(lbh, audio_regen):
+    if lbh:
+        lbh_text = f"LBH {lbh['scale']:g}x" + (" 8+4" if director_lbh.full_first_pass(lbh) else " 4+4")
+    else:
+        lbh_text = "LBH OFF"
+    return f"{lbh_text}, 오디오 재생성 {'ON' if audio_regen else 'OFF'}"
+
+
+def guard_settings_change(previous, lbh, audio_regen):
+    """Refuse to silently throw away approved scenes when LBH/audio-regen settings changed.
+
+    These settings are part of the cache identity, so a mismatch (typically after loading
+    a .ext made with other Settings) would regenerate every approved scene from scratch.
+    Only states that recorded the settings of their last run are checked.
+    """
+    if "lbh" not in previous and "audio_regen" not in previous:
+        return
+    if not any(c.get("validated") for c in previous.get("clips", [])):
+        return
+    before = (previous.get("lbh"), previous.get("audio_regen"))
+    if before == (lbh, audio_regen):
+        return
+    raise ValueError(
+        "Director long video: 승인된 장면이 있는 프로젝트의 생성 설정이 달라졌습니다 — "
+        f"프로젝트: {describe_settings(*before)} / 지금 Settings: {describe_settings(lbh, audio_regen)}. "
+        "이대로 생성하면 승인된 장면을 모두 다시 만듭니다. Settings를 프로젝트 설정으로 되돌리거나, "
+        "새 설정으로 다시 만들려면 장면 승인을 해제한 뒤 생성하세요.")
+
+
 class DirectorPlusGenerate:
 
     @classmethod
@@ -220,6 +249,7 @@ class DirectorPlusGenerate:
         guide["long_video"] = copy.deepcopy(guide["long_video"])
         lbh = director_lbh.settings(lbh_enabled, lbh_scale, lbh_model_name, lbh_full_first_pass)
         audio_regen = director_audio_regen.settings(audio_regen_enabled, audio_regen_model)
+        guard_settings_change(guide["long_video"], lbh, audio_regen)
         if lbh and len(sigmas) < 6:
             raise ValueError("Director LBH needs at least 5 sampling steps (base + final 4-step refine).")
         guide["long_video"]["lbh"] = lbh

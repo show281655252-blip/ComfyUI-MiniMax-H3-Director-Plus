@@ -117,6 +117,14 @@ function patchProjection(node) {
     };
 }
 
+// Lets other Director Plus code (e.g. .ext load) set 8+4 without the poll restoring an older
+// remembered value when it sees LBH switch on.
+window.DirectorPlusLbhToggle = {
+    remember(node, full, lbhOn) {
+        memory.set(node, { lbh: Boolean(lbhOn), remembered: Boolean(full) });
+    },
+};
+
 function nodes() {
     const graphs = new Set([app.graph, app.canvas?.graph].filter(Boolean));
     return [...graphs].flatMap((graph) => graph._nodes || graph.nodes || []);

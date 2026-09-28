@@ -698,12 +698,14 @@ export function renderLongVideo(node, state, emit) {
         }
       }
       state.long_video = incoming;
+      const matched = applyProjectSettings(incoming);
       rt.cached = checked.cached; rt.needsRegeneration = checked.missing; rt.cacheChecked = true;
       rt.preview = null; rt.spans = null;
       rt.selected = Math.max(0, incoming.clips.findIndex(c => !c.validated));
       rt.message = checked.missing.length
         ? '설정 불러오기 완료 · 재생성 필요 ' + checked.missing.length + '개 · 프롬프트와 시드는 유지했습니다.'
         : '설정 불러오기 완료 · 캐시 확인 완료';
+      if (matched) rt.message += ` · Settings를 프로젝트 설정으로 맞춤 (${matched})`;
       save();
     } catch (e) { rt.message = '설정을 불러오지 못했습니다: ' + e.message; }
     finally { rt.busy = false; refresh(); }
@@ -724,6 +726,38 @@ export function renderLongVideo(node, state, emit) {
 
   return panel;
 
+}
+
+// A .ext remembers the LBH / audio-regen settings it was generated with. Those settings are part
+// of the cache identity, so put them back on the workflow's controls (the Settings subgraph or an
+// unlinked Generate node); otherwise the next run would regenerate every approved scene.
+const PROJECT_SETTING_WIDGETS = [
+  { lbh: "lbh_latent_upscale_enabled", scale: "lbh_latent_upscale_scale", full: "lbh_full_first_pass", regen: "audio_regen_enabled" },
+  { lbh: "lbh_enabled", scale: "lbh_scale", full: "lbh_full_first_pass", regen: "audio_regen_enabled" },
+];
+function applyProjectSettings(long) {
+  if (!("lbh" in long) && !("audio_regen" in long)) return null;
+  const lbh = long.lbh || null;
+  const full = Boolean(lbh && lbh.first_pass === "full");
+  const regen = Boolean(long.audio_regen);
+  let applied = false;
+  for (const target of app.graph?._nodes || []) {
+    const find = name => target.widgets?.find(w => w.name === name && !(target.inputs || []).some(i => i.name === name && i.link != null));
+    for (const names of PROJECT_SETTING_WIDGETS) {
+      const lbhWidget = find(names.lbh), regenWidget = find(names.regen);
+      if (!lbhWidget && !regenWidget) continue;
+      window.DirectorPlusLbhToggle?.remember(target, full, Boolean(lbh));
+      if (lbhWidget) lbhWidget.value = Boolean(lbh);
+      if (lbh && find(names.scale)) find(names.scale).value = Number(lbh.scale);
+      if (find(names.full)) find(names.full).value = full;
+      if (regenWidget) regenWidget.value = regen;
+      applied = true;
+      target.setDirtyCanvas?.(true, true);
+      break;
+    }
+  }
+  if (!applied) return null;
+  return `LBH ${lbh ? `${Number(lbh.scale)}x ${full ? "8+4" : "4+4"}` : "OFF"} · 오디오 재생성 ${regen ? "ON" : "OFF"}`;
 }
 
 function directors() { return (app.graph?._nodes || []).filter(n => n.comfyClass === "DirectorPlusTimeline" && n.__directorLong); }
