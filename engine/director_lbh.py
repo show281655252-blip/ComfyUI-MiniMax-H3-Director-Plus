@@ -36,12 +36,21 @@ def output_size(width, height, config):
     return tuple(max(32, round(x * config['scale'] / 32) * 32) for x in (width, height))
 
 
-def resize_context(context, width, height, vae):
-    """Only the low-resolution pass sees a resized copy of the previous scene."""
+def resize_context(context, width, height, vae, decode_cache=None):
+    """Only the low-resolution pass sees a resized copy of the previous scene.
+
+    ``decode_cache`` (a dict) keeps the decoded frames so several target sizes of
+    the same context cost one VAE decode; the result is identical either way.
+    """
     if context is None:
         return None
     video, audio = context['samples'].unbind()
-    video = reencode_visual(video, width // 16, height // 16, vae)
+    pixels = None
+    if decode_cache is not None and video.shape[-2:] != (height // 16, width // 16):
+        if decode_cache.get('context') is not context:
+            decode_cache.update(context=context, pixels=vae.decode(video))
+        pixels = decode_cache['pixels']
+    video = reencode_visual(video, width // 16, height // 16, vae, pixels)
     return {'samples': comfy.nested_tensor.NestedTensor((video, audio))}
 
 

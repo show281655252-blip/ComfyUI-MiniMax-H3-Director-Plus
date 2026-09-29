@@ -27,14 +27,14 @@ def shrink(video, scale):
 
 
 def regenerate(model, base_positive, sampled, context_proxy, motion, context_length, audio_context_length,
-               base_width, base_height, vae, seed, sampler_name, config, sample):
+               base_width, base_height, vae, seed, sampler_name, config, sample, context_decode_cache=None):
     video, audio = sampled['samples'].unbind()
     small = shrink(video, config['scale'])
     width, height = small.shape[-1] * 16, small.shape[-2] * 16
     latent = {'samples': comfy.nested_tensor.NestedTensor((small, audio))}
     positive = director_lbh.resize_conditioning(base_positive, base_width, base_height, width, height, vae)
     if context_proxy is not None:
-        context = director_lbh.resize_context(context_proxy, width, height, vae)
+        context = director_lbh.resize_context(context_proxy, width, height, vae, context_decode_cache)
         positive = motion.apply(positive, latent, context, context_length, audio_context_length)[0]
     out = sample(model, positive, latent, seed, sampler_name, 'simple', config['steps'], config['denoise'])
     _, new_audio = out['samples'].unbind()

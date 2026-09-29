@@ -5290,6 +5290,8 @@ class MiniMaxH3Extender:
             trim_frames = None
             base_positive = positive
             context_proxy = previous_proxy if i > 0 else kwargs.get("initial_context")
+            # LBH and audio regen both resize the previous scene's context; decode it once.
+            context_decode_cache = {}
             if i > 0 or context_proxy is not None:
                 if context_proxy is None:
                     raise RuntimeError(
@@ -5298,7 +5300,8 @@ class MiniMaxH3Extender:
                 positive, trim_frames, _, _, _ = motion.apply(
                     positive,
                     latent,
-                    director_lbh.resize_context(context_proxy, resolved_width, resolved_height, vae) if lbh else context_proxy,
+                    director_lbh.resize_context(context_proxy, resolved_width, resolved_height, vae,
+                                                context_decode_cache) if lbh else context_proxy,
                     str(context_length),
                     int(audio_context_length),
                 )
@@ -5343,8 +5346,9 @@ class MiniMaxH3Extender:
                     regen_model, base_positive, sampled, context_proxy, motion,
                     str(context_length), int(audio_context_length),
                     resolved_width, resolved_height, vae, cfg["seed"], str(sampler_name),
-                    audio_regen["config"], _sample_h3)
+                    audio_regen["config"], _sample_h3, context_decode_cache)
                 del regen_model
+            context_decode_cache.clear()
 
             result = disk_join.join(
                 samples=sampled,
