@@ -13,17 +13,24 @@ from pathlib import Path
 from aiohttp import web
 import folder_paths
 from server import PromptServer
+from . import director_refmod
 from . import extender
 from .motion_context_disk import _color_timeline, _comfy_media_item
 
+REFMOD_MEMBER = "director_refmods/{slot}.safetensors"
 
-def project_owner(state, widgets):
+
+def project_owner(state, widgets, refmods=None):
+    """Must match director_long.prepare_state for a new-video project."""
     width, height = extender._manual_effective_resolution(int(widgets["width"]), int(widgets["height"]))
     signature = json.dumps([None, width, height, state.get("context_length", "22")])
     if state.get("lbh"):
         signature = json.dumps([None, width, height, state.get("context_length", "22"), state["lbh"]])
     if state.get("audio_regen"):
         signature = json.dumps([signature, state["audio_regen"]])
+    refmod_signature = director_refmod.signature(refmods)
+    if refmod_signature:
+        signature = json.dumps([signature, {"refmods": refmod_signature}])
     return "director_" + state["project_id"] + "_" + hashlib.sha256(signature.encode()).hexdigest()[:12]
 
 
@@ -33,11 +40,22 @@ def build_project(payload, output):
     long = state["long_video"]
     if long.get("start_mode") == "video":
         raise ValueError("Director .ext projects support new-video mode only.")
-    if state.get("refmods"):
-        raise ValueError("Remove RefMod references before saving a Director .ext project.")
     long.pop("last_preview", None)
-    owner = long.get("cache_owner") or project_owner(long, director["widgets"])
+    owner = long.get("cache_owner") or project_owner(long, director["widgets"], state.get("refmods"))
     assets = []
+    # Selected RefMod files travel inside the project; unselected rows are dropped.
+    active = {row["slot"] for row in director_refmod.active_rows(state.get("refmods"))}
+    kept = []
+    for row in state.get("refmods") or []:
+        if not isinstance(row, dict) or row.get("slot") is None or int(row["slot"]) not in active:
+            continue
+        member = REFMOD_MEMBER.format(slot=int(row["slot"]))
+        try:
+            assets.append((member, Path(director_refmod.file_path(row["name"]))))
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"RefMod {row['slot']} '{row['name']}' is missing: {exc}") from exc
+        kept.append({**row, "name": member})
+    state["refmods"] = kept
     root = Path(folder_paths.get_input_directory()).resolve()
     for index, item in enumerate(state.get("items", [])):
         value = item.get("value")
@@ -101,7 +119,19 @@ def restore_project(path):
         long["source_mode_enabled"] = False
         long.pop("source_video", None)
         long.pop("last_preview", None)
-        owner = project_owner(long, director["widgets"])
+        refmods = state.get("refmods") or []
+        if refmods:
+            refmod_root = Path(folder_paths.models_dir) / "refmods" / "director_projects"
+            refmod_root.mkdir(parents=True, exist_ok=True)
+            for row in refmods:
+                member = row.get("name")
+                if member != REFMOD_MEMBER.format(slot=int(row.get("slot", 0))):
+                    raise ValueError("Invalid Director RefMod archive path.")
+                archive.getinfo(member)
+                output = _store_media(archive, member, ".safetensors", refmod_root)
+                row["name"] = "director_projects/" + output.stem
+        # After the RefMod files exist again: the owner hashes their content.
+        owner = project_owner(long, director["widgets"], refmods)
         input_root = Path(folder_paths.get_input_directory())
         media_root = input_root / "director_projects" / "media"
         assets = []

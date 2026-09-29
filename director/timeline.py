@@ -315,7 +315,11 @@ class DirectorPlusTimeline:
             validate_reference_limits(images=images, videos=videos, audios=audios,
                                       audio_has_visual=bool(images or videos or refmod_items))
 
-        tag_map = _refmod_tag_map(refmod_items, ref_images, ref_videos, ref_video_audios, ref_audios)
+        if long_video.get("enabled"):
+            # Scenes differ in their own references; the long-video engine numbers RefMods per scene.
+            tag_map = {item["slot"]: f"<RefMod {item['slot']}>" for item in refmod_items}
+        else:
+            tag_map = _refmod_tag_map(refmod_items, ref_images, ref_videos, ref_video_audios, ref_audios)
         prompt = _translate_refmods(prompt, tag_map)
         for key in ("simple_prompt", "imd", "soundscape", "music"):
             if isinstance(merged.get(key), str):

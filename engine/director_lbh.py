@@ -92,7 +92,8 @@ def resize_conditioning(conditioning, base_width, base_height, width, height, va
             for block in metadata[key]:
                 block = dict(block)
                 z = block.get('latent')
-                if z is not None and block.get('kind') != 'audio':
+                # Long-video RefMods keep their stored (possibly compressed) grid.
+                if z is not None and block.get('kind') != 'audio' and not block.get('_director_refmod'):
                     if key == 'minimax_keyframes':
                         tw, th = width // 16, height // 16
                     else:

@@ -4,13 +4,17 @@ ComfyUI용 MiniMax H3 장면 타임라인·긴 영상(Ref2VA + Motion Context) �
 
 ### 긴 영상 LBH 업스케일
 
-LBH 고해상도 보정의 참조 이미지·키프레임은 **픽셀 공간에서 크기를 변경한 후 Video VAE로 다시 인코딩**합니다. H3 잠재값을 bilinear로 직접 확대하면 격자 무늬와 잔상이 생길 수 있습니다. 원본 픽셀이 없는 RefMod/영상 문맥은 디코딩 후 재인코딩하며, 오디오와 프레임 위치는 유지합니다. 이 처리 변경 전의 LBH 캐시는 별도로 보존되며 새로 생성해야 합니다.
+LBH 고해상도 보정의 참조 이미지·키프레임은 **픽셀 공간에서 크기를 변경한 후 Video VAE로 다시 인코딩**합니다. H3 잠재값을 bilinear로 직접 확대하면 격자 무늬와 잔상이 생길 수 있습니다. 원본 픽셀이 없는 RefMod/영상 문맥은 디코딩 후 재인코딩하며(긴 영상의 RefMod는 저장된 크기 그대로 사용), 오디오와 프레임 위치는 유지합니다. 이 처리 변경 전의 LBH 캐시는 별도로 보존되며 새로 생성해야 합니다.
 
 단일 영상의 기존 `MiniMaxH3ConditioningUpscale`은 `DirectorPlusConditioningMatchLatent`로 교체하고 `conditioning`, 확대 전 `base_latent`, 실제 LBH 출력 `target_latent`, Video `vae`, Director `guide`를 연결하세요. 이 노드는 실제 출력 격자에 맞추므로 LBH와 조건 확대의 반올림 차이도 방지합니다. Python 변경 적용에는 ComfyUI 재시작이 필요합니다.
 
 `DirectorPlusGenerate`의 선택 입력 `lbh_enabled` / `lbh_scale`을 Settings의 LBH ON/OFF / 배율에 연결하면 긴 영상에도 LBH를 적용합니다. 기존 워크플로우는 입력이 없으면 OFF로 동작합니다. 기본 해상도로 전체 스텝 중 마지막 4스텝을 제외하고 샘플링한 뒤, denoised 잠재값을 LBH로 확대하고 마지막 4스텝을 고해상도에서 보정합니다(최소 5스텝 필요).
 
 선택 입력 `lbh_full_first_pass`를 켜면 **8+4** 방식으로 동작합니다: 기본 해상도에서 스케줄을 끝까지 샘플링한 뒤 확대하고, 같은 스케줄의 마지막 4스텝으로 고해상도 보정을 합니다(기존 방식은 마지막 4스텝을 빼고 샘플링). 켜면 캐시가 분리됩니다.
+
+### 긴 영상 RefMod
+
+Director의 **SAVED REFERENCES**(`models/refmods/`의 RefMod)를 긴 영상에서도 쓸 수 있습니다. 모든 장면에 공통으로 붙으며, 저장된 잠재값을 다시 인코딩하지 않고 그대로 넣습니다(압축 RefMod의 적은 토큰 수 유지, LBH·오디오 재생성에서도 크기 유지). 프롬프트에는 `<RefMod N>`을 쓰세요. 장면마다 그 장면의 일반 레퍼런스 뒤 번호(`<Picture 2>` 등)로 바뀌고, 콘솔에 `Clip N RefMods <RefMod 1> -> <Picture 2>`로 표시됩니다. 긴 영상 모드에서는 INSERT IN PROMPT·Prefill도 `<RefMod N>`을 넣습니다. RefMod 파일·강도·선택이 바뀌면 캐시가 분리되고 승인이 초기화됩니다. `.ext`에는 선택한 RefMod 파일이 함께 저장되고, 불러오면 `models/refmods/director_projects/`에 복원됩니다(같은 파일은 한 번만). RefMod 파일은 [ComfyUI-MiniMaxH3Mod](https://github.com/Luisacaotica/ComfyUI-MiniMaxH3Mod)의 Create 노드로 만듭니다.
 
 ### 긴 영상 오디오 재생성
 

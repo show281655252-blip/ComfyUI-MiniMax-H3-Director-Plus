@@ -498,8 +498,8 @@ function install(node) {
     const definitions = [], retention = [], roles = [];
     let hasVisual = false, hasAudio = false;
     const note = value => String(value || "").trim().replace(/\s+/g, " ");
-    const add = (kind, role, description, source) => {
-      const label = `<${{ image: "Picture", video: "Video", audio: "Audio" }[kind]} ${++counts[kind]}>`;
+    const add = (kind, role, description, source, fixedLabel) => {
+      const label = fixedLabel || `<${{ image: "Picture", video: "Video", audio: "Audio" }[kind]} ${++counts[kind]}>`;
       const detail = note(description);
       definitions.push(`${label} ${role}${source ? ` (${source})` : ""}${detail ? ` User description: ${detail}` : ""}.`);
       if (kind === "audio") {
@@ -529,7 +529,9 @@ function install(node) {
       const kinds = Array.isArray(entry?.kinds) && entry.kinds.length ? entry.kinds : [entry?.kind || row.media_type];
       for (const kind of kinds) {
         if (!["image", "video", "audio"].includes(kind)) continue;
-        add(kind, `is a saved ${kind} reference`, row.description || entry?.description, `RefMod ${row.slot}`);
+        // Long video numbers RefMods per scene on the server, so keep the <RefMod N> tag.
+        add(kind, `is a saved ${kind} reference`, row.description || entry?.description, `RefMod ${row.slot}`,
+          state.long_video?.enabled ? `<RefMod ${row.slot}>` : undefined);
       }
     }
     if (!definitions.length) return null;
@@ -598,7 +600,8 @@ function install(node) {
         counts[kind]++;
         return `<${{ image: "Picture", video: "Video", audio: "Audio" }[kind]} ${counts[kind]}>`;
       });
-      const tag = labels.join(" ");
+      // Long video numbers RefMods per scene on the server, so insert the <RefMod N> tag itself.
+      const tag = state.long_video?.enabled ? `<RefMod ${row.slot}>` : labels.join(" ");
       const description = (row.description || "").trim();
       tags[row.slot] = tag;
       expansions[row.slot] = description ? `${tag}: ${description}` : tag;
