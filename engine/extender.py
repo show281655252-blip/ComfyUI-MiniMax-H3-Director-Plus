@@ -4775,7 +4775,8 @@ class MiniMaxH3Extender:
         if external_prompt_pack is None:
             active_prompt_pack_signature = ""
 
-        requested_export_profile = _final_decode_profile_from_prompt(prompt, owner)
+        # Director passes its output node's profile (its final node is not a Final Decode node).
+        requested_export_profile = kwargs.get("director_export_profile") or _final_decode_profile_from_prompt(prompt, owner)
 
         if generation_mode == "fl2va":
             return self._extend_fl2va(

@@ -37,7 +37,7 @@ from . import director_lbh
 from . import director_audio_regen
 from . import director_refmod
 
-from .motion_context_disk import MiniMaxH3MotionContextDiskFinalDecode, _find_ffmpeg, _comfy_media_item, _video_output_from_path
+from .motion_context_disk import MiniMaxH3MotionContextDiskFinalDecode, _find_ffmpeg, _comfy_media_item, _video_output_from_path, normalize_full_batch_export_profile
 
 def source_path(filename):
 
@@ -206,6 +206,27 @@ def guard_settings_change(previous, lbh, audio_regen):
         "새 설정으로 다시 만들려면 장면 승인을 해제한 뒤 생성하세요.")
 
 
+def output_export_profile(prompt, unique_id):
+    """Video profile of the DirectorPlusVideoOutput fed by this Generate node.
+
+    Scenes are encoded while they are generated; if that profile differs from the
+    final output's, the final join re-decodes every scene (about 17 s each at 960x1280).
+    None when no single output node is found (the engine keeps its default).
+    """
+    if not isinstance(prompt, dict) or unique_id is None:
+        return None
+    outputs = [node.get("inputs", {}) for node in prompt.values()
+               if isinstance(node, dict) and node.get("class_type") == "DirectorPlusVideoOutput"
+               and isinstance(node.get("inputs", {}).get("long_cache"), (list, tuple))
+               and str(node["inputs"]["long_cache"][0]) == str(unique_id)]
+    if len(outputs) != 1:
+        return None
+    quality = outputs[0].get("quality", 18)  # DirectorPlusVideoOutput.save default
+    if isinstance(quality, (list, tuple)):
+        return None
+    return normalize_full_batch_export_profile({"codec": "H.264", "crf": int(quality), "preset": "fast"})
+
+
 class DirectorPlusGenerate:
 
     @classmethod
@@ -227,7 +248,7 @@ class DirectorPlusGenerate:
             "lbh_full_first_pass": ("BOOLEAN", {"default": False, "tooltip": "LBH 8+4: finish the whole schedule at base resolution, then refine with its last 4 steps."}),
             "audio_regen_enabled": ("BOOLEAN", {"default": False, "tooltip": "Re-sample each scene's audio with the base model (30 steps, denoise 0.5) on a half-size video."}),
             "audio_regen_model": ("MODEL", {"tooltip": "Base model before HyperFlow/turbo LoRAs, with the same sigma shift."}),
-        }}
+        }, "hidden": {"prompt": "PROMPT", "unique_id": "UNIQUE_ID"}}
 
     RETURN_TYPES = ("H3_MOTION_DISK_CACHE",)
 
@@ -243,7 +264,8 @@ class DirectorPlusGenerate:
 
     def generate(self, guide, model, clip, vae, audio_vae, sigmas, sampler_name,
                  lbh_enabled=False, lbh_scale=1.5, lbh_model_name="minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors",
-                 lbh_full_first_pass=False, audio_regen_enabled=False, audio_regen_model=None):
+                 lbh_full_first_pass=False, audio_regen_enabled=False, audio_regen_model=None,
+                 prompt=None, unique_id=None):
 
         guide = dict(guide)
         guide["long_video"] = copy.deepcopy(guide["long_video"])
@@ -303,7 +325,8 @@ class DirectorPlusGenerate:
 
             unique_id=owner, sigmas=sigmas, initial_context=initial_context, director_lbh=lbh,
             director_audio_regen={"config": audio_regen, "model": audio_regen_model} if audio_regen else None,
-            director_refmods=guide.get("minimax_ref_items") or None, **media,
+            director_refmods=guide.get("minimax_ref_items") or None,
+            director_export_profile=output_export_profile(prompt, unique_id), **media,
 
         )
 
