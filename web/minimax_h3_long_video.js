@@ -493,6 +493,7 @@ export function renderLongVideo(node, state, emit) {
     rt.selected = 0; rt.scrollTo = 0;
     return `장면 ${approved}개의 승인을 해제했습니다. (캐시는 유지)`;
   });
+  title.append(clearButton); // destructive action last, at the far right
 
   const preview = rt.preview || s.last_preview?.video;
   const spans = rt.spans || s.last_preview?.scenes || [];
