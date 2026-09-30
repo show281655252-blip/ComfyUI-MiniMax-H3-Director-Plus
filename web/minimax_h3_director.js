@@ -337,7 +337,7 @@ function install(node) {
     close.onclick = closeOverlay; done.onclick = closeOverlay; overlay.onpointerdown = event => { if (event.target === overlay) closeOverlay(); }; document.addEventListener("keydown", onKey);
     const help = (headline, text) => { const box = document.createElement("div"); box.className = "dp-h3-refmod-help"; const strong = document.createElement("strong"); strong.textContent = headline; const copy = document.createElement("span"); copy.textContent = text; box.append(strong, copy); return box; };
     // Director Plus: build a RefMod file from a timeline image/video (server runs ComfyUI-MiniMaxH3Mod's extractor).
-    const creator = { open: false, busy: false, message: "", error: false, options: null, source: "", name: "", mode: "full", description: "", vae: "" };
+    const creator = { open: false, busy: false, message: "", error: false, options: null, source: "", name: "", mode: "full", description: "", vae: "", pool: 16, frames: 16, removeSource: null };
     const creatorSources = () => (state.items || []).filter(item => item.value && (item.type === "image" || (item.type === "video" && item.media_mode !== "audio")));
     const creatorStem = value => String(value).split("/").pop().replace(/\.[^.]+$/, "").replace(/[\\/:*?"<>|]/g, "_");
     const createSection = () => {
@@ -365,9 +365,9 @@ function install(node) {
       const source = document.createElement("select");
       if (items.length > 1) source.append(new Option(`전체 · 레퍼런스 ${items.length}개를 각각 만들기`, ALL));
       for (const item of items) source.append(new Option(`${item.type === "image" ? "이미지" : "영상"} · ${String(item.value).split("/").pop()}`, item.id));
-      source.value = creator.source; source.onchange = () => { creator.source = source.value; if (source.value !== ALL) creator.name = creatorStem(items.find(item => item.id === source.value).value); redraw(); };
+      source.value = creator.source; source.onchange = () => { creator.source = source.value; creator.removeSource = null; if (source.value !== ALL) creator.name = creatorStem(items.find(item => item.id === source.value).value); redraw(); };
       const name = document.createElement("input"); name.type = "text"; name.value = creator.name; name.style.cssText = "box-sizing:border-box;width:100%;padding:7px 8px;background:#091117;color:#e4edf2;border:1px solid #38556a;border-radius:4px"; name.oninput = () => { creator.name = name.value; };
-      const modeSelect = document.createElement("select"); modeSelect.append(new Option("Full — 디테일 보존 (이미지 추천)", "full"), new Option("Compressed — 토큰 적음·빠름 (영상 추천)", "compressed")); modeSelect.value = creator.mode; modeSelect.onchange = () => { creator.mode = modeSelect.value; };
+      const modeSelect = document.createElement("select"); modeSelect.append(new Option("Full — 디테일 보존 (이미지 추천)", "full"), new Option("Compressed — 토큰 적음·빠름 (영상 추천)", "compressed")); modeSelect.value = creator.mode; modeSelect.onchange = () => { creator.mode = modeSelect.value; redraw(); };
       const description = document.createElement("textarea"); description.rows = 2; description.value = creator.description; description.placeholder = "이 레퍼런스가 무엇인지 (인물, 동작, 스타일 등)"; description.oninput = () => { creator.description = description.value; };
       grid.append(field("원본 레퍼런스", "타임라인에 올린 이미지·영상 중에서 고릅니다. 영상은 타임라인에서 자른 구간을 씁니다.", source));
       if (all) {
@@ -376,7 +376,28 @@ function install(node) {
         grid.append(field("RefMod 이름", "파일 이름 그대로 하나씩 저장하고, 슬롯도 하나씩 씁니다. 같은 이름이 이미 있으면 그 파일을 선택합니다.", names));
       } else grid.append(field("RefMod 이름", "models/refmods에 이 이름으로 저장됩니다.", name));
       grid.append(field("방식", "Full은 원본을 그대로 인코딩, Compressed는 압축해 토큰을 줄입니다.", modeSelect));
+      const chosen = all ? items : items.filter(item => item.id === creator.source);
+      const hasVideo = chosen.some(item => item.type === "video");
+      if (creator.mode === "compressed") {
+        // Tokens ride through every sampling step: frames x (grid/2)^2 per reference.
+        const pool = document.createElement("select");
+        for (const [value, label] of [[8, "8×8 — 가장 가벼움, 디테일 적음"], [16, "16×16 — 기본"], [24, "24×24"], [32, "32×32 — 인물·얼굴 추천, 토큰 4배"]]) pool.append(new Option(label, value));
+        pool.value = creator.pool; pool.onchange = () => { creator.pool = Number(pool.value); redraw(); };
+        const perFrame = (creator.pool / 2) ** 2;
+        grid.append(field("압축 격자", `격자가 클수록 디테일이 남고 토큰이 늘어납니다. 이미지 1장 최대 약 ${perFrame}토큰(비율에 따라 더 적음).`, pool));
+        if (hasVideo) {
+          const frames = document.createElement("select");
+          for (const [value, label] of [[8, "8 — 가벼움"], [16, "16 — 기본"], [32, "32 — 동작이 중요할 때"]]) frames.append(new Option(label, value));
+          frames.value = creator.frames; frames.onchange = () => { creator.frames = Number(frames.value); redraw(); };
+          grid.append(field("영상 프레임 수", `영상에서 남길 잠재 프레임 수(최대값)입니다. 영상 1개 최대 약 ${Math.min(perFrame * creator.frames, 5120)}토큰(상한 5120).`, frames));
+        }
+      }
       if (!all) grid.append(field("설명", "프롬프트에 함께 들어갈 설명입니다. 나중에 바꿀 수 있습니다.", description));
+      const removeWrap = document.createElement("span"); removeWrap.className = "dp-h3-refmod-toggle";
+      const removeBox = document.createElement("input"); removeBox.type = "checkbox"; removeBox.checked = creator.removeSource ?? hasVideo; removeBox.onchange = () => { creator.removeSource = removeBox.checked; };
+      const removeText = document.createElement("span"); removeText.textContent = "만든 뒤 원본을 타임라인에서 빼기";
+      removeWrap.append(removeBox, removeText);
+      grid.append(field("원본 레퍼런스 처리", "원본이 타임라인에 남아 있으면 원본 토큰도 그대로 들어갑니다. 영상은 빼야 빨라집니다. 뺀 뒤에는 프롬프트의 <Picture N>·<Video N> 번호가 당겨지니 <RefMod N>으로 바꿔 쓰세요. (파일은 input 폴더에 그대로 남습니다.)", removeWrap));
       if ((creator.options.vaes || []).length > 1) {
         const vae = document.createElement("select"); for (const v of creator.options.vaes) vae.append(new Option(v, v)); vae.value = creator.vae; vae.onchange = () => { creator.vae = vae.value; };
         grid.append(field("Video VAE", "인코딩에 쓸 MiniMax H3 Video VAE입니다.", vae));
@@ -390,12 +411,14 @@ function install(node) {
         creator.busy = true; creator.error = false;
         const rows = state.refmods || (state.refmods = []);
         const lines = [];
+        const dropSource = creator.removeSource ?? targets.some(item => item.type === "video");
+        const made = [];
         try {
           for (const [index, item] of targets.entries()) {
             const wanted = batch ? creatorStem(item.value) : creator.name;
             const text = batch ? "" : creator.description.trim();
             creator.message = `Video VAE로 인코딩하는 중입니다 (${index + 1}/${targets.length}). 영상은 시간이 걸릴 수 있습니다.`; redraw();
-            const response = await api.fetchApi("/director_plus/refmod/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: item.type, value: item.value, trim_start: item.trim_start ?? 0, trim_end: item.trim_end ?? null, name: wanted, mode: creator.mode, description: text, vae: creator.vae }) });
+            const response = await api.fetchApi("/director_plus/refmod/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: item.type, value: item.value, trim_start: item.trim_start ?? 0, trim_end: item.trim_end ?? null, name: wanted, mode: creator.mode, description: text, vae: creator.vae, pool: creator.pool, frames: creator.frames }) });
             const result = await response.json();
             // In a batch an existing file of that name is reused instead of stopping the rest.
             if (!result.ok && !(batch && result.exists)) throw new Error(result.error || "RefMod를 만들지 못했습니다.");
@@ -405,11 +428,12 @@ function install(node) {
               const used = new Set(rows.map(entry => entry.slot)); const slot = Array.from({ length: 8 }, (_, i) => i + 1).find(value => !used.has(value));
               if (slot) { row = { slot, name: saved, description: text, strength: 1, enabled: true, media_type: result.kind || item.type }; rows.push(row); }
             } else row.enabled = true;
+            made.push(item.id);
             lines.push(`'${saved}' ${result.ok ? `저장 완료 (${result.tokens ?? "?"} 토큰)` : "이미 있어 기존 파일 사용"}` + (row ? ` · <RefMod ${row.slot}>` : " · 슬롯이 가득 차서 선택 못 함"));
           }
-          creator.message = lines.join(" / ");
+          creator.message = lines.join(" / ") + (dropSource ? " / 원본을 타임라인에서 뺐습니다." : "");
         } catch (error) { creator.error = true; creator.message = [...lines, error.message].join(" / "); }
-        finally { emit(); refModLibrary.loaded = false; creator.busy = false; refreshLibrary(); render(); }
+        finally { if (dropSource) made.forEach(id => remove(id)); creator.removeSource = null; emit(); refModLibrary.loaded = false; creator.busy = false; refreshLibrary(); render(); }
       };
       card.append(run);
       if (creator.message) { const note = help(creator.error ? "실패" : "안내", creator.message); note.style.margin = "0 12px 12px"; if (creator.error) note.style.borderLeftColor = "#ff6f6f"; card.append(note); }

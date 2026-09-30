@@ -80,6 +80,13 @@ def create(payload):
     for root in refmods_roots():
         if os.path.isfile(os.path.join(root, name + ".safetensors")):
             raise RefModExists(f"'{name}' RefMod가 이미 있습니다. 다른 이름을 쓰세요.")
+    try:
+        pool = int(payload.get("pool") or 16)
+        frames = int(payload.get("frames") or 16)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("압축 격자와 프레임 수는 숫자여야 합니다.") from exc
+    if not 2 <= pool <= 64 or not 1 <= frames <= 64:
+        raise ValueError("압축 격자는 2~64, 프레임 수는 1~64 범위여야 합니다.")
     vaes = video_vaes()
     vae_name = payload.get("vae") or (vaes[0] if vaes else None)
     if vae_name not in vaes:
@@ -98,6 +105,7 @@ def create(payload):
     try:
         with torch.inference_mode(), _no_progress():  # nodes run under inference mode in a normal queue
             output = extract.execute(name=name, mode=mode, vae=vae, max_tokens=5120,
+                                     pool_h=pool, pool_w=pool, latent_frames=frames,
                                      description=str(payload.get("description") or "").strip(), save=True, **refs)
     finally:
         del vae
