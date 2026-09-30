@@ -55,6 +55,10 @@ def _no_progress():
         comfy.utils.set_progress_bar_global_hook(original)
 
 
+class RefModExists(ValueError):
+    """A RefMod of that name is already saved."""
+
+
 def _clean_name(name):
     name = str(name or "").strip()
     if not name or name.startswith(".") or any(ch in name for ch in '/\\:*?"<>|'):
@@ -75,7 +79,7 @@ def create(payload):
     name = _clean_name(payload.get("name"))
     for root in refmods_roots():
         if os.path.isfile(os.path.join(root, name + ".safetensors")):
-            raise ValueError(f"'{name}' RefMod가 이미 있습니다. 다른 이름을 쓰세요.")
+            raise RefModExists(f"'{name}' RefMod가 이미 있습니다. 다른 이름을 쓰세요.")
     vaes = video_vaes()
     vae_name = payload.get("vae") or (vaes[0] if vaes else None)
     if vae_name not in vaes:
@@ -120,7 +124,7 @@ def register_routes(server):
                 payload = await request.json()
                 return web.json_response(await asyncio.to_thread(create, payload))
             except ValueError as exc:
-                return web.json_response({"ok": False, "error": str(exc)}, status=400)
+                return web.json_response({"ok": False, "error": str(exc), "exists": isinstance(exc, RefModExists)}, status=400)
             except Exception as exc:  # the extractor is another pack's code: report, never a bare 500
                 logging.exception("[Director Plus] RefMod creation failed")
                 return web.json_response({"ok": False, "error": f"{type(exc).__name__}: {exc}"}, status=500)

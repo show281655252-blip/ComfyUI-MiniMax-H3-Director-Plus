@@ -358,19 +358,25 @@ function install(node) {
       if (!creator.options.available) { card.append(help("추가 설치 필요", `RefMod를 만들려면 ${creator.options.pack} 커스텀 노드가 필요합니다: ${creator.options.pack_url} (이미 만든 RefMod를 쓰는 데는 필요 없습니다.)`)); return card; }
       const items = creatorSources();
       if (!items.length) { card.append(help("레퍼런스 없음", "타임라인에 이미지나 영상 레퍼런스를 먼저 올리세요.")); return card; }
-      if (!items.some(item => item.id === creator.source)) { creator.source = items[0].id; creator.name = creatorStem(items[0].value); }
+      const ALL = "__all__";
+      if (creator.source !== ALL && !items.some(item => item.id === creator.source)) { creator.source = items[0].id; creator.name = creatorStem(items[0].value); }
+      if (creator.source === ALL && items.length < 2) { creator.source = items[0].id; creator.name = creatorStem(items[0].value); }
+      const all = creator.source === ALL;
       const source = document.createElement("select");
+      if (items.length > 1) source.append(new Option(`전체 · 레퍼런스 ${items.length}개를 각각 만들기`, ALL));
       for (const item of items) source.append(new Option(`${item.type === "image" ? "이미지" : "영상"} · ${String(item.value).split("/").pop()}`, item.id));
-      source.value = creator.source; source.onchange = () => { creator.source = source.value; creator.name = creatorStem(items.find(item => item.id === source.value).value); redraw(); };
+      source.value = creator.source; source.onchange = () => { creator.source = source.value; if (source.value !== ALL) creator.name = creatorStem(items.find(item => item.id === source.value).value); redraw(); };
       const name = document.createElement("input"); name.type = "text"; name.value = creator.name; name.style.cssText = "box-sizing:border-box;width:100%;padding:7px 8px;background:#091117;color:#e4edf2;border:1px solid #38556a;border-radius:4px"; name.oninput = () => { creator.name = name.value; };
       const modeSelect = document.createElement("select"); modeSelect.append(new Option("Full — 디테일 보존 (이미지 추천)", "full"), new Option("Compressed — 토큰 적음·빠름 (영상 추천)", "compressed")); modeSelect.value = creator.mode; modeSelect.onchange = () => { creator.mode = modeSelect.value; };
       const description = document.createElement("textarea"); description.rows = 2; description.value = creator.description; description.placeholder = "이 레퍼런스가 무엇인지 (인물, 동작, 스타일 등)"; description.oninput = () => { creator.description = description.value; };
-      grid.append(
-        field("원본 레퍼런스", "타임라인에 올린 이미지·영상 중에서 고릅니다. 영상은 타임라인에서 자른 구간을 씁니다.", source),
-        field("RefMod 이름", "models/refmods에 이 이름으로 저장됩니다.", name),
-        field("방식", "Full은 원본을 그대로 인코딩, Compressed는 압축해 토큰을 줄입니다.", modeSelect),
-        field("설명", "프롬프트에 함께 들어갈 설명입니다. 나중에 바꿀 수 있습니다.", description),
-      );
+      grid.append(field("원본 레퍼런스", "타임라인에 올린 이미지·영상 중에서 고릅니다. 영상은 타임라인에서 자른 구간을 씁니다.", source));
+      if (all) {
+        // One file per reference: a multi-image RefMod would be stacked into a single <Video> of equal-sized frames.
+        const names = document.createElement("span"); names.style.cssText = "color:#c8d8e2;font-size:11px;line-height:1.5;word-break:break-all"; names.textContent = items.map(item => creatorStem(item.value)).join("  ·  ");
+        grid.append(field("RefMod 이름", "파일 이름 그대로 하나씩 저장하고, 슬롯도 하나씩 씁니다. 같은 이름이 이미 있으면 그 파일을 선택합니다.", names));
+      } else grid.append(field("RefMod 이름", "models/refmods에 이 이름으로 저장됩니다.", name));
+      grid.append(field("방식", "Full은 원본을 그대로 인코딩, Compressed는 압축해 토큰을 줄입니다.", modeSelect));
+      if (!all) grid.append(field("설명", "프롬프트에 함께 들어갈 설명입니다. 나중에 바꿀 수 있습니다.", description));
       if ((creator.options.vaes || []).length > 1) {
         const vae = document.createElement("select"); for (const v of creator.options.vaes) vae.append(new Option(v, v)); vae.value = creator.vae; vae.onchange = () => { creator.vae = vae.value; };
         grid.append(field("Video VAE", "인코딩에 쓸 MiniMax H3 Video VAE입니다.", vae));
@@ -378,20 +384,32 @@ function install(node) {
       card.append(grid);
       const run = document.createElement("button"); run.type = "button"; run.className = "dp-h3-refmod-add"; run.style.margin = "0 12px 12px"; run.textContent = creator.busy ? "만드는 중…" : "RefMod 만들기"; run.disabled = creator.busy;
       run.onclick = async () => {
-        const item = creatorSources().find(entry => entry.id === creator.source);
-        if (!item || creator.busy) return;
-        creator.busy = true; creator.error = false; creator.message = "Video VAE로 인코딩하는 중입니다. 영상은 시간이 걸릴 수 있습니다."; redraw();
+        const batch = creator.source === ALL;
+        const targets = batch ? creatorSources() : creatorSources().filter(entry => entry.id === creator.source);
+        if (!targets.length || creator.busy) return;
+        creator.busy = true; creator.error = false;
+        const rows = state.refmods || (state.refmods = []);
+        const lines = [];
         try {
-          const response = await api.fetchApi("/director_plus/refmod/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: item.type, value: item.value, trim_start: item.trim_start ?? 0, trim_end: item.trim_end ?? null, name: creator.name, mode: creator.mode, description: creator.description, vae: creator.vae }) });
-          const result = await response.json();
-          if (!result.ok) throw new Error(result.error || "RefMod를 만들지 못했습니다.");
-          const rows = state.refmods || (state.refmods = []);
-          const used = new Set(rows.map(row => row.slot)); const slot = Array.from({ length: 8 }, (_, index) => index + 1).find(value => !used.has(value));
-          if (slot) rows.push({ slot, name: result.name, description: creator.description.trim(), strength: 1, enabled: true, media_type: result.kind });
-          creator.message = `'${result.name}' 저장 완료 (${result.tokens ?? "?"} 토큰)` + (slot ? ` · <RefMod ${slot}>에 선택했습니다.` : " · 슬롯이 가득 차서 선택하지 못했습니다.");
-          emit(); refModLibrary.loaded = false; refreshLibrary();
-        } catch (error) { creator.error = true; creator.message = error.message; }
-        finally { creator.busy = false; if (overlay.isConnected) redraw(); render(); }
+          for (const [index, item] of targets.entries()) {
+            const wanted = batch ? creatorStem(item.value) : creator.name;
+            const text = batch ? "" : creator.description.trim();
+            creator.message = `Video VAE로 인코딩하는 중입니다 (${index + 1}/${targets.length}). 영상은 시간이 걸릴 수 있습니다.`; redraw();
+            const response = await api.fetchApi("/director_plus/refmod/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: item.type, value: item.value, trim_start: item.trim_start ?? 0, trim_end: item.trim_end ?? null, name: wanted, mode: creator.mode, description: text, vae: creator.vae }) });
+            const result = await response.json();
+            // In a batch an existing file of that name is reused instead of stopping the rest.
+            if (!result.ok && !(batch && result.exists)) throw new Error(result.error || "RefMod를 만들지 못했습니다.");
+            const saved = result.ok ? result.name : wanted.trim();
+            let row = rows.find(entry => entry.name === saved);
+            if (!row) {
+              const used = new Set(rows.map(entry => entry.slot)); const slot = Array.from({ length: 8 }, (_, i) => i + 1).find(value => !used.has(value));
+              if (slot) { row = { slot, name: saved, description: text, strength: 1, enabled: true, media_type: result.kind || item.type }; rows.push(row); }
+            } else row.enabled = true;
+            lines.push(`'${saved}' ${result.ok ? `저장 완료 (${result.tokens ?? "?"} 토큰)` : "이미 있어 기존 파일 사용"}` + (row ? ` · <RefMod ${row.slot}>` : " · 슬롯이 가득 차서 선택 못 함"));
+          }
+          creator.message = lines.join(" / ");
+        } catch (error) { creator.error = true; creator.message = [...lines, error.message].join(" / "); }
+        finally { emit(); refModLibrary.loaded = false; creator.busy = false; refreshLibrary(); render(); }
       };
       card.append(run);
       if (creator.message) { const note = help(creator.error ? "실패" : "안내", creator.message); note.style.margin = "0 12px 12px"; if (creator.error) note.style.borderLeftColor = "#ff6f6f"; card.append(note); }
