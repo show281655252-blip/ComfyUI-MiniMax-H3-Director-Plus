@@ -1,7 +1,7 @@
-"""Create RefMod files from Director image/video references.
+"""Create RefMod files from Director image/video/audio references.
 
-The extraction itself is ComfyUI-MiniMaxH3Mod's ``Create H3 RefMod`` node, called
-directly so the saved files stay in that pack's format. Without the pack the route
+The extraction itself is ComfyUI-MiniMaxH3Mod's ``Create H3 RefMod`` / ``Create H3
+Audio RefMod`` nodes, called directly so the saved files stay in that pack's format. Without the pack the route
 reports it as unavailable; using existing RefMods never needs it.
 """
 import asyncio
@@ -18,10 +18,13 @@ import comfy.utils
 import folder_paths
 import nodes
 
-from .helper_minimax_h3_director import load_image, load_video
+from .helper_minimax_h3_director import load_audio, load_embedded_video_audio, load_image, load_video
 from .helper_refmod_format import refmods_roots
 
 PACK_NODE = "MiniMaxH3RefModExtract"
+AUDIO_NODE = "MiniMaxH3RefModAudioExtract"
+AUDIO_CONCEPTS = ("voice", "singing", "music_style", "sound_fx", "ambience")
+AUDIO_MAX_SECONDS = 30.0
 PACK_NAME = "ComfyUI-MiniMaxH3Mod"
 PACK_URL = "https://github.com/Luisacaotica/ComfyUI-MiniMaxH3Mod"
 MODES = {"full": "Full Reference", "compressed": "Compressed Reference"}
@@ -32,9 +35,14 @@ def video_vaes():
     return [name for name in folder_paths.get_filename_list("vae") if "minimax_h3_video_vae" in name.lower()]
 
 
+def audio_vaes():
+    return [name for name in folder_paths.get_filename_list("vae") if "minimax_h3_audio_vae" in name.lower()]
+
+
 def options():
-    return {"available": PACK_NODE in nodes.NODE_CLASS_MAPPINGS, "pack": PACK_NAME, "pack_url": PACK_URL,
-            "vaes": video_vaes(), "modes": list(MODES)}
+    return {"available": PACK_NODE in nodes.NODE_CLASS_MAPPINGS and AUDIO_NODE in nodes.NODE_CLASS_MAPPINGS,
+            "pack": PACK_NAME, "pack_url": PACK_URL, "vaes": video_vaes(), "audio_vaes": audio_vaes(),
+            "modes": list(MODES), "audio_concepts": list(AUDIO_CONCEPTS)}
 
 
 @contextlib.contextmanager
@@ -66,20 +74,53 @@ def _clean_name(name):
     return name
 
 
+def _trim(payload):
+    trim_end = payload.get("trim_end")
+    return float(payload.get("trim_start") or 0.0), None if trim_end is None else float(trim_end)
+
+
+def _create_audio(payload, name):
+    extract = nodes.NODE_CLASS_MAPPINGS[AUDIO_NODE]
+    concept = payload.get("concept_type") or "voice"
+    if concept not in AUDIO_CONCEPTS:
+        raise ValueError("알 수 없는 소리 종류입니다.")
+    vaes = audio_vaes()
+    vae_name = payload.get("audio_vae") or (vaes[0] if vaes else None)
+    if vae_name not in vaes:
+        raise ValueError("MiniMax H3 Audio VAE(minimax_h3_audio_vae…)를 models/vae에서 찾지 못했습니다.")
+    trim_start, trim_end = _trim(payload)
+    loader = load_embedded_video_audio if payload.get("source_type") == "video" else load_audio
+    audio = loader(payload["value"], folder_paths.get_input_directory(), trim_start=trim_start, trim_end=trim_end)
+    if not isinstance(audio, dict) or audio.get("waveform") is None or audio["waveform"].shape[-1] == 0:
+        raise ValueError("이 레퍼런스에는 소리가 없습니다.")
+    vae = nodes.VAELoader().load_vae(vae_name)[0]
+    try:
+        with torch.inference_mode(), _no_progress():
+            mod = extract().extract(audio=audio, audio_vae=vae, name=name, max_seconds=AUDIO_MAX_SECONDS, max_tokens=5120,
+                                    budget_policy="truncate", concept_type=concept,
+                                    description=str(payload.get("description") or "").strip(), save=True)[0][0][0]
+    finally:
+        del vae
+        comfy.model_management.soft_empty_cache()
+    return {"ok": True, "name": name, "kind": "audio", "tokens": getattr(mod, "token_count", None)}
+
+
 def create(payload):
     extract = nodes.NODE_CLASS_MAPPINGS.get(PACK_NODE)
-    if extract is None:
+    if extract is None or AUDIO_NODE not in nodes.NODE_CLASS_MAPPINGS:
         raise ValueError(f"RefMod를 만들려면 {PACK_NAME} 커스텀 노드가 필요합니다. ({PACK_URL})")
     kind = payload.get("type")
-    if kind not in ("image", "video"):
-        raise ValueError("이미지나 영상 레퍼런스만 RefMod로 만들 수 있습니다.")
-    mode = MODES.get(payload.get("mode", "full"))
-    if mode is None:
-        raise ValueError("알 수 없는 RefMod 방식입니다.")
+    if kind not in ("image", "video", "audio"):
+        raise ValueError("이미지·영상·오디오 레퍼런스만 RefMod로 만들 수 있습니다.")
     name = _clean_name(payload.get("name"))
     for root in refmods_roots():
         if os.path.isfile(os.path.join(root, name + ".safetensors")):
             raise RefModExists(f"'{name}' RefMod가 이미 있습니다. 다른 이름을 쓰세요.")
+    if kind == "audio":
+        return _create_audio(payload, name)
+    mode = MODES.get(payload.get("mode", "full"))
+    if mode is None:
+        raise ValueError("알 수 없는 RefMod 방식입니다.")
     try:
         pool = int(payload.get("pool") or 16)
         frames = int(payload.get("frames") or 16)
@@ -96,10 +137,9 @@ def create(payload):
     if kind == "image":
         refs = {"refs_image": {"ref_image_1": load_image(payload["value"], input_directory)}}
     else:
-        trim_end = payload.get("trim_end")
+        trim_start, trim_end = _trim(payload)
         refs = {"refs_video": {"ref_video_1": load_video(
-            payload["value"], input_directory, trim_start=float(payload.get("trim_start") or 0.0),
-            trim_end=None if trim_end is None else float(trim_end))}}
+            payload["value"], input_directory, trim_start=trim_start, trim_end=trim_end)}}
 
     vae = nodes.VAELoader().load_vae(vae_name)[0]
     try:
