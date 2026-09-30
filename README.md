@@ -14,7 +14,7 @@ LBH 고해상도 보정의 참조 이미지·키프레임은 **픽셀 공간에�
 
 ### 긴 영상 RefMod
 
-Director의 **SAVED REFERENCES**(`models/refmods/`의 RefMod)를 긴 영상에서도 쓸 수 있습니다. 모든 장면에 공통으로 붙으며, 저장된 잠재값을 다시 인코딩하지 않고 그대로 넣습니다(압축 RefMod의 적은 토큰 수 유지, LBH·오디오 재생성에서도 크기 유지). 프롬프트에는 `<RefMod N>`을 쓰세요. 장면마다 그 장면의 일반 레퍼런스 뒤 번호(`<Picture 2>` 등)로 바뀌고, 콘솔에 `Clip N RefMods <RefMod 1> -> <Picture 2>`로 표시됩니다. 긴 영상 모드에서는 INSERT IN PROMPT·Prefill도 `<RefMod N>`을 넣습니다. RefMod 파일·강도·선택이 바뀌면 캐시가 분리되고 승인이 초기화됩니다. `.ext`에는 선택한 RefMod 파일이 함께 저장되고, 불러오면 `models/refmods/director_projects/`에 복원됩니다(같은 파일은 한 번만). RefMod 파일은 [ComfyUI-MiniMaxH3Mod](https://github.com/Luisacaotica/ComfyUI-MiniMaxH3Mod)의 Create 노드로 만듭니다.
+Director의 **SAVED REFERENCES**(`models/refmods/`의 RefMod)를 긴 영상에서도 쓸 수 있습니다. 모든 장면에 공통으로 붙으며, 저장된 잠재값을 다시 인코딩하지 않고 그대로 넣습니다(압축 RefMod의 적은 토큰 수 유지, LBH·오디오 재생성에서도 크기 유지). 프롬프트에는 `<RefMod N>`을 쓰세요. 장면마다 그 장면의 일반 레퍼런스 뒤 번호(`<Picture 2>` 등)로 바뀌고, 콘솔에 `Clip N RefMods <RefMod 1> -> <Picture 2>`로 표시됩니다. 긴 영상 모드에서는 INSERT IN PROMPT·Prefill도 `<RefMod N>`을 넣습니다. RefMod 파일·강도·선택이 바뀌면 캐시가 분리되고 승인이 초기화됩니다. `.ext`에는 선택한 RefMod 파일이 함께 저장되고, 불러오면 `models/refmods/director_projects/`에 복원됩니다(같은 파일은 한 번만). **RefMod 만들기**: SAVED REFERENCES 창의 「레퍼런스로 RefMod 만들기」에서 타임라인의 이미지·영상을 고르고 이름·방식(Full / Compressed)·설명을 넣으면 `models/refmods/`에 저장되고 빈 슬롯에 바로 선택됩니다(영상은 타임라인에서 자른 구간 사용, 같은 이름이 있으면 거부, 영상 생성 중에는 실행 안 됨). 추출은 [ComfyUI-MiniMaxH3Mod](https://github.com/Luisacaotica/ComfyUI-MiniMaxH3Mod)의 Create H3 RefMod 노드를 그대로 호출하므로 **만들 때만 이 팩이 필요**합니다(이미 만든 RefMod를 쓰는 데는 필요 없음). 오디오 RefMod는 그 팩의 노드로 직접 만드세요.
 
 ### 긴 영상 오디오 재생성
 

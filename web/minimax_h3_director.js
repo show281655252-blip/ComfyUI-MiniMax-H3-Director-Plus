@@ -336,6 +336,67 @@ function install(node) {
     activeRefModOverlayCleanup = closeOverlay;
     close.onclick = closeOverlay; done.onclick = closeOverlay; overlay.onpointerdown = event => { if (event.target === overlay) closeOverlay(); }; document.addEventListener("keydown", onKey);
     const help = (headline, text) => { const box = document.createElement("div"); box.className = "dp-h3-refmod-help"; const strong = document.createElement("strong"); strong.textContent = headline; const copy = document.createElement("span"); copy.textContent = text; box.append(strong, copy); return box; };
+    // Director Plus: build a RefMod file from a timeline image/video (server runs ComfyUI-MiniMaxH3Mod's extractor).
+    const creator = { open: false, busy: false, message: "", error: false, options: null, source: "", name: "", mode: "full", description: "", vae: "" };
+    const creatorSources = () => (state.items || []).filter(item => item.value && (item.type === "image" || (item.type === "video" && item.media_mode !== "audio")));
+    const creatorStem = value => String(value).split("/").pop().replace(/\.[^.]+$/, "").replace(/[\\/:*?"<>|]/g, "_");
+    const createSection = () => {
+      const card = document.createElement("section"); card.className = "dp-h3-refmod-card";
+      const head = document.createElement("div"); head.className = "dp-h3-refmod-cardhead";
+      const title = document.createElement("h3"); title.textContent = "레퍼런스로 RefMod 만들기";
+      const toggle = document.createElement("button"); toggle.type = "button"; toggle.className = "dp-h3-refmod-remove"; toggle.textContent = creator.open ? "접기" : "열기";
+      toggle.onclick = () => {
+        creator.open = !creator.open;
+        if (creator.open && !creator.options) void api.fetchApi("/director_plus/refmod/create").then(r => r.json()).then(o => { creator.options = o; creator.vae = o.vaes?.[0] || ""; }).catch(e => { creator.message = e.message; creator.error = true; }).finally(() => { if (overlay.isConnected) redraw(); });
+        redraw();
+      };
+      head.append(title, toggle); card.append(head);
+      if (!creator.open) return card;
+      const grid = document.createElement("div"); grid.className = "dp-h3-refmod-grid";
+      const field = (headline, description, control) => { const label = document.createElement("label"); label.className = "dp-h3-refmod-field"; const name = document.createElement("strong"); name.textContent = headline; const hint = document.createElement("span"); hint.textContent = description; label.append(name, control, hint); return label; };
+      if (!creator.options) { card.append(help("확인 중", "RefMod 만들기 기능을 확인하고 있습니다…")); return card; }
+      if (!creator.options.available) { card.append(help("추가 설치 필요", `RefMod를 만들려면 ${creator.options.pack} 커스텀 노드가 필요합니다: ${creator.options.pack_url} (이미 만든 RefMod를 쓰는 데는 필요 없습니다.)`)); return card; }
+      const items = creatorSources();
+      if (!items.length) { card.append(help("레퍼런스 없음", "타임라인에 이미지나 영상 레퍼런스를 먼저 올리세요.")); return card; }
+      if (!items.some(item => item.id === creator.source)) { creator.source = items[0].id; creator.name = creatorStem(items[0].value); }
+      const source = document.createElement("select");
+      for (const item of items) source.append(new Option(`${item.type === "image" ? "이미지" : "영상"} · ${String(item.value).split("/").pop()}`, item.id));
+      source.value = creator.source; source.onchange = () => { creator.source = source.value; creator.name = creatorStem(items.find(item => item.id === source.value).value); redraw(); };
+      const name = document.createElement("input"); name.type = "text"; name.value = creator.name; name.style.cssText = "box-sizing:border-box;width:100%;padding:7px 8px;background:#091117;color:#e4edf2;border:1px solid #38556a;border-radius:4px"; name.oninput = () => { creator.name = name.value; };
+      const modeSelect = document.createElement("select"); modeSelect.append(new Option("Full — 디테일 보존 (이미지 추천)", "full"), new Option("Compressed — 토큰 적음·빠름 (영상 추천)", "compressed")); modeSelect.value = creator.mode; modeSelect.onchange = () => { creator.mode = modeSelect.value; };
+      const description = document.createElement("textarea"); description.rows = 2; description.value = creator.description; description.placeholder = "이 레퍼런스가 무엇인지 (인물, 동작, 스타일 등)"; description.oninput = () => { creator.description = description.value; };
+      grid.append(
+        field("원본 레퍼런스", "타임라인에 올린 이미지·영상 중에서 고릅니다. 영상은 타임라인에서 자른 구간을 씁니다.", source),
+        field("RefMod 이름", "models/refmods에 이 이름으로 저장됩니다.", name),
+        field("방식", "Full은 원본을 그대로 인코딩, Compressed는 압축해 토큰을 줄입니다.", modeSelect),
+        field("설명", "프롬프트에 함께 들어갈 설명입니다. 나중에 바꿀 수 있습니다.", description),
+      );
+      if ((creator.options.vaes || []).length > 1) {
+        const vae = document.createElement("select"); for (const v of creator.options.vaes) vae.append(new Option(v, v)); vae.value = creator.vae; vae.onchange = () => { creator.vae = vae.value; };
+        grid.append(field("Video VAE", "인코딩에 쓸 MiniMax H3 Video VAE입니다.", vae));
+      }
+      card.append(grid);
+      const run = document.createElement("button"); run.type = "button"; run.className = "dp-h3-refmod-add"; run.style.margin = "0 12px 12px"; run.textContent = creator.busy ? "만드는 중…" : "RefMod 만들기"; run.disabled = creator.busy;
+      run.onclick = async () => {
+        const item = creatorSources().find(entry => entry.id === creator.source);
+        if (!item || creator.busy) return;
+        creator.busy = true; creator.error = false; creator.message = "Video VAE로 인코딩하는 중입니다. 영상은 시간이 걸릴 수 있습니다."; redraw();
+        try {
+          const response = await api.fetchApi("/director_plus/refmod/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: item.type, value: item.value, trim_start: item.trim_start ?? 0, trim_end: item.trim_end ?? null, name: creator.name, mode: creator.mode, description: creator.description, vae: creator.vae }) });
+          const result = await response.json();
+          if (!result.ok) throw new Error(result.error || "RefMod를 만들지 못했습니다.");
+          const rows = state.refmods || (state.refmods = []);
+          const used = new Set(rows.map(row => row.slot)); const slot = Array.from({ length: 8 }, (_, index) => index + 1).find(value => !used.has(value));
+          if (slot) rows.push({ slot, name: result.name, description: creator.description.trim(), strength: 1, enabled: true, media_type: result.kind });
+          creator.message = `'${result.name}' 저장 완료 (${result.tokens ?? "?"} 토큰)` + (slot ? ` · <RefMod ${slot}>에 선택했습니다.` : " · 슬롯이 가득 차서 선택하지 못했습니다.");
+          emit(); refModLibrary.loaded = false; refreshLibrary();
+        } catch (error) { creator.error = true; creator.message = error.message; }
+        finally { creator.busy = false; if (overlay.isConnected) redraw(); render(); }
+      };
+      card.append(run);
+      if (creator.message) { const note = help(creator.error ? "실패" : "안내", creator.message); note.style.margin = "0 12px 12px"; if (creator.error) note.style.borderLeftColor = "#ff6f6f"; card.append(note); }
+      return card;
+    };
     const redraw = () => {
       content.replaceChildren();
       const rows = state.refmods || (state.refmods = []);
@@ -345,7 +406,7 @@ function install(node) {
       content.append(help("How this works", "1. Choose a saved reference. 2. Enable it and set its influence. 3. Click INSERT IN PROMPT to insert its full expanded reference text—e.g. <Video 1>: digital animation, ...—at your cursor."));
       const add = document.createElement("button"); add.type = "button"; add.className = "dp-h3-refmod-add"; add.textContent = "+ Add reference"; add.disabled = rows.length >= 8;
       add.onclick = () => { const used = new Set(rows.map(row => row.slot)); const slot = Array.from({ length: 8 }, (_, index) => index + 1).find(value => !used.has(value)); if (slot) { rows.push({ slot, name: "", description: "", strength: 1, enabled: false }); emit(); redraw(); } };
-      content.append(add);
+      content.append(add, createSection());
       if (!rows.length) content.append(help("No references selected", "Add a reference to bind a file from models/refmods to a prompt tag."));
       for (const row of [...rows].sort((a, b) => a.slot - b.slot)) {
         const card = document.createElement("section"); card.className = "dp-h3-refmod-card";
