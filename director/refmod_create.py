@@ -144,7 +144,8 @@ def create(payload):
     vae = nodes.VAELoader().load_vae(vae_name)[0]
     try:
         with torch.inference_mode(), _no_progress():  # nodes run under inference mode in a normal queue
-            output = extract.execute(name=name, mode=mode, vae=vae, max_tokens=5120,
+            # max_tokens=0: no budget, the chosen grid and frame count decide the size
+            output = extract.execute(name=name, mode=mode, vae=vae, max_tokens=0,
                                      pool_h=pool, pool_w=pool, latent_frames=frames,
                                      description=str(payload.get("description") or "").strip(), save=True, **refs)
     finally:

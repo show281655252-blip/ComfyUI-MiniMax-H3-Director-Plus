@@ -400,7 +400,7 @@ function install(node) {
       if (hasVisual && creator.mode === "compressed") {
         // Tokens ride through every sampling step: frames x (grid/2)^2 per reference.
         const pool = document.createElement("select");
-        for (const [value, label] of [[8, "8×8 — 가장 가벼움, 디테일 적음"], [16, "16×16 — 기본"], [24, "24×24"], [32, "32×32 — 인물·얼굴 추천, 토큰 4배"]]) pool.append(new Option(label, value));
+        for (const [value, label] of [[8, "8×8 — 가장 가벼움, 디테일 적음"], [16, "16×16 — 기본"], [24, "24×24"], [32, "32×32 — 인물·얼굴 추천, 토큰 4배"], [48, "48×48 — 토큰 9배"], [64, "64×64 — 원본에 가까움, 토큰 16배"]]) pool.append(new Option(label, value));
         pool.value = creator.pool; pool.onchange = () => { creator.pool = Number(pool.value); redraw(); };
         const perFrame = (creator.pool / 2) ** 2;
         grid.append(field("압축 격자", `격자가 클수록 디테일이 남고 토큰이 늘어납니다. 이미지 1장 최대 약 ${perFrame}토큰(비율에 따라 더 적음).`, pool));
@@ -408,7 +408,7 @@ function install(node) {
           const frames = document.createElement("select");
           for (const [value, label] of [[8, "8 — 가벼움"], [16, "16 — 기본"], [32, "32 — 동작이 중요할 때"]]) frames.append(new Option(label, value));
           frames.value = creator.frames; frames.onchange = () => { creator.frames = Number(frames.value); redraw(); };
-          grid.append(field("영상 프레임 수", `영상에서 남길 잠재 프레임 수(최대값)입니다. 영상 1개 최대 약 ${Math.min(perFrame * creator.frames, 5120)}토큰(상한 5120).`, frames));
+          grid.append(field("영상 프레임 수", `영상에서 남길 잠재 프레임 수(최대값)입니다. 영상 1개 최대 약 ${perFrame * creator.frames}토큰(비율에 따라 더 적음). 토큰이 많을수록 생성이 느려집니다.`, frames));
         }
       }
       if (!all) grid.append(field("설명", "프롬프트에 함께 들어갈 설명입니다. 나중에 바꿀 수 있습니다.", description));
