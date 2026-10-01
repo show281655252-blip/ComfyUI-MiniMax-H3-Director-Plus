@@ -81,6 +81,8 @@ PyTorch/torchaudio를 다른 버전으로 교체하지 말고 ComfyUI 배포본�
 
 [ComfyUI-MinimaxH3-PromptDirector](https://github.com/Bokuwako/ComfyUI-MinimaxH3-PromptDirector)가 설치돼 있으면, 그 Prompt Writer의 `FOLLOW_DIRECTOR` 모드가 Director Plus 노드도 Director로 인식합니다. Writer가 Director Plus의 mode(REF2VA 등)·길이·레퍼런스 이미지를 읽어 그 모드 형식으로 프롬프트를 씁니다. PromptDirector 파일은 수정하지 않으며(실행 시 Director 탐색만 넓힘), 연동이 안 되면 콘솔에 경고가 나옵니다. 이 경우 Writer의 mode를 직접 지정하세요.
 
+REF2VA에서 Director 타임라인에 영상 레퍼런스가 있으면, Writer가 쓰기 전에 그 영상(타임라인의 자르기 구간)을 0.5초 간격으로 최대 30장 뽑아 Writer의 Ollama 모델(`vision_model`을 고르면 그 모델)에 한 번 보여 주고, 카메라·시작 자세·시간순 동작·손 모양·표정·효과를 적은 동작 분석을 받습니다. Writer에는 원래 영상 이름만 넘어가던 자리에 이 분석과 「카메라·배경·조명·소품·동작은 영상에서, 외모·의상은 그림에서」라는 역할 설명이 들어갑니다. 영상 1개당 약 20~30초가 더 걸리며, 같은 영상·구간·모델이면 서버를 켜 둔 동안 결과를 재사용합니다. 분석이 실패하면 기존처럼 이름만 넘어가고 Writer 리포트에 이유가 남습니다.
+
 ## 기존 워크플로우 변환
 
 0.1 패치의 Director 노드를 쓰던 워크플로우는 복사본으로 변환할 수 있습니다.

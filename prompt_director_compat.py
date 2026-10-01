@@ -13,6 +13,8 @@ import sys
 
 from server import PromptServer
 
+from . import prompt_director_video
+
 DIRECTOR_CLASSES = ("MiniMaxH3Director", "DirectorPlusTimeline")
 WRITER_CLASS = "MMH3_OllamaPromptWriter"
 _state = {"done": False, "warned": False}
@@ -39,16 +41,23 @@ def _director_link_modules():
 def apply():
     if _state["done"]:
         return True
+    import nodes
     patched = False
     for module in _director_link_modules():
         if callable(getattr(module, "find_directors", None)):
             module.find_directors = _find_directors
             patched = True
+            try:  # optional: give the writer a motion analysis of each video reference
+                prompt_director_video.wrap_read_director(module)
+            except Exception as exc:
+                logging.warning("[Director Plus] Prompt Writer video analysis not available: %s", exc)
     if patched:
         _state["done"] = True
+        writer = nodes.NODE_CLASS_MAPPINGS.get(WRITER_CLASS)
+        if writer is not None:
+            prompt_director_video.wrap_writer(writer)
         logging.info("[Director Plus] Prompt Writer (PromptDirector) can now follow DirectorPlusTimeline.")
         return True
-    import nodes
     if WRITER_CLASS in nodes.NODE_CLASS_MAPPINGS and not _state["warned"]:
         _state["warned"] = True
         logging.warning("[Director Plus] PromptDirector is installed but its Director lookup changed; "
