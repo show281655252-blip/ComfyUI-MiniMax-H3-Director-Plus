@@ -336,141 +336,6 @@ function install(node) {
     activeRefModOverlayCleanup = closeOverlay;
     close.onclick = closeOverlay; done.onclick = closeOverlay; overlay.onpointerdown = event => { if (event.target === overlay) closeOverlay(); }; document.addEventListener("keydown", onKey);
     const help = (headline, text) => { const box = document.createElement("div"); box.className = "dp-h3-refmod-help"; const strong = document.createElement("strong"); strong.textContent = headline; const copy = document.createElement("span"); copy.textContent = text; box.append(strong, copy); return box; };
-    // Director Plus: build a RefMod file from a timeline image/video/audio (server runs ComfyUI-MiniMaxH3Mod's extractors).
-    const creator = { open: false, busy: false, message: "", error: false, options: null, source: "", name: "", mode: "full", description: "", vae: "", pool: 16, frames: 16, removeSource: null, concept: "voice", withAudio: false };
-    // One entry per thing that can become a RefMod; a video also offers its soundtrack (`track`, never part of "전체").
-    const creatorSources = () => (state.items || []).filter(item => item.value).flatMap(item => {
-      const base = { itemId: item.id, value: item.value, trim_start: item.trim_start, trim_end: item.trim_end };
-      const file = String(item.value).split("/").pop();
-      if (item.type === "image") return [{ ...base, id: item.id, type: "image", label: `이미지 · ${file}` }];
-      if (item.type === "audio") return [{ ...base, id: item.id, type: "audio", from: "audio", label: `오디오 · ${file}` }];
-      if (item.type !== "video") return [];
-      return [...(item.media_mode === "audio" ? [] : [{ ...base, id: item.id, type: "video", label: `영상 · ${file}` }]),
-        { ...base, id: `${item.id}#audio`, type: "audio", from: "video", track: true, label: `영상의 소리 · ${file}` }];
-    });
-    const creatorName = entry => creatorStem(entry.value) + (entry.track ? "_audio" : "");
-    const creatorStem = value => String(value).split("/").pop().replace(/\.[^.]+$/, "").replace(/[\\/:*?"<>|]/g, "_");
-    const createSection = () => {
-      const card = document.createElement("section"); card.className = "dp-h3-refmod-card";
-      const head = document.createElement("div"); head.className = "dp-h3-refmod-cardhead";
-      const title = document.createElement("h3"); title.textContent = "레퍼런스로 RefMod 만들기";
-      const toggle = document.createElement("button"); toggle.type = "button"; toggle.className = "dp-h3-refmod-remove"; toggle.textContent = creator.open ? "접기" : "열기";
-      toggle.onclick = () => {
-        creator.open = !creator.open;
-        if (creator.open && !creator.options) void api.fetchApi("/director_plus/refmod/create").then(r => r.json()).then(o => { creator.options = o; creator.vae = o.vaes?.[0] || ""; }).catch(e => { creator.message = e.message; creator.error = true; }).finally(() => { if (overlay.isConnected) redraw(); });
-        redraw();
-      };
-      head.append(title, toggle); card.append(head);
-      if (!creator.open) return card;
-      const grid = document.createElement("div"); grid.className = "dp-h3-refmod-grid";
-      const field = (headline, description, control) => { const label = document.createElement("label"); label.className = "dp-h3-refmod-field"; const name = document.createElement("strong"); name.textContent = headline; const hint = document.createElement("span"); hint.textContent = description; label.append(name, control, hint); return label; };
-      if (!creator.options) { card.append(help("확인 중", "RefMod 만들기 기능을 확인하고 있습니다…")); return card; }
-      if (!creator.options.available) { card.append(help("추가 설치 필요", `RefMod를 만들려면 ${creator.options.pack} 커스텀 노드가 필요합니다: ${creator.options.pack_url} (이미 만든 RefMod를 쓰는 데는 필요 없습니다.)`)); return card; }
-      const items = creatorSources();
-      if (!items.length) { card.append(help("레퍼런스 없음", "타임라인에 이미지·영상·오디오 레퍼런스를 먼저 올리세요.")); return card; }
-      const batchItems = items.filter(item => !item.track);
-      const ALL = "__all__";
-      if (creator.source !== ALL && !items.some(item => item.id === creator.source)) { creator.source = items[0].id; creator.name = creatorName(items[0]); }
-      if (creator.source === ALL && batchItems.length < 2) { creator.source = items[0].id; creator.name = creatorName(items[0]); }
-      const all = creator.source === ALL;
-      const source = document.createElement("select");
-      if (batchItems.length > 1) source.append(new Option(`전체 · 레퍼런스 ${batchItems.length}개를 각각 만들기`, ALL));
-      for (const item of items) source.append(new Option(item.label, item.id));
-      source.value = creator.source; source.onchange = () => { creator.source = source.value; creator.removeSource = null; if (source.value !== ALL) creator.name = creatorName(items.find(item => item.id === source.value)); redraw(); };
-      const name = document.createElement("input"); name.type = "text"; name.value = creator.name; name.style.cssText = "box-sizing:border-box;width:100%;padding:7px 8px;background:#091117;color:#e4edf2;border:1px solid #38556a;border-radius:4px"; name.oninput = () => { creator.name = name.value; };
-      const modeSelect = document.createElement("select"); modeSelect.append(new Option("Full — 디테일 보존 (이미지 추천)", "full"), new Option("Compressed — 토큰 적음·빠름 (영상 추천)", "compressed")); modeSelect.value = creator.mode; modeSelect.onchange = () => { creator.mode = modeSelect.value; redraw(); };
-      const description = document.createElement("textarea"); description.rows = 2; description.value = creator.description; description.placeholder = "이 레퍼런스가 무엇인지 (인물, 동작, 스타일 등)"; description.oninput = () => { creator.description = description.value; };
-      grid.append(field("원본 레퍼런스", "타임라인에 올린 이미지·영상·오디오 중에서 고릅니다. 영상·오디오는 타임라인에서 자른 구간을 씁니다.", source));
-      const chosen = all ? batchItems : items.filter(item => item.id === creator.source);
-      const hasVideo = chosen.some(item => item.type === "video");
-      const hasVisual = chosen.some(item => item.type !== "audio");
-      const hasAudio = chosen.some(item => item.type === "audio");
-      if (all) {
-        // One file per reference: a multi-image RefMod would be stacked into a single <Video> of equal-sized frames.
-        const names = document.createElement("span"); names.style.cssText = "color:#c8d8e2;font-size:11px;line-height:1.5;word-break:break-all"; names.textContent = batchItems.map(creatorName).join("  ·  ");
-        grid.append(field("RefMod 이름", "파일 이름 그대로 하나씩 저장하고, 슬롯도 하나씩 씁니다. 같은 이름이 이미 있으면 그 파일을 선택합니다.", names));
-      } else grid.append(field("RefMod 이름", "models/refmods에 이 이름으로 저장됩니다.", name));
-      if (hasVisual) grid.append(field("방식", "Full은 원본을 그대로 인코딩, Compressed는 압축해 토큰을 줄입니다.", modeSelect));
-      if (hasVideo) {
-        const audioWrap = document.createElement("span"); audioWrap.className = "dp-h3-refmod-toggle";
-        const audioBox = document.createElement("input"); audioBox.type = "checkbox"; audioBox.checked = creator.withAudio; audioBox.onchange = () => { creator.withAudio = audioBox.checked; redraw(); };
-        const audioText = document.createElement("span"); audioText.textContent = "영상의 소리도 함께 넣기 (한 파일)";
-        audioWrap.append(audioBox, audioText);
-        grid.append(field("영상의 소리", "영상과 그 소리를 한 RefMod 파일(번들)에 담습니다. 슬롯 하나로 <Video> <Audio>가 함께 들어가고, 강도·켜기도 함께 적용됩니다. 소리가 없는 영상이면 실패합니다.", audioWrap));
-      }
-      if (hasAudio || (hasVideo && creator.withAudio)) {
-        const concept = document.createElement("select");
-        for (const [value, label] of [["voice", "목소리"], ["singing", "노래"], ["music_style", "음악 스타일"], ["sound_fx", "효과음"], ["ambience", "배경음"]]) concept.append(new Option(label, value));
-        concept.value = creator.concept; concept.onchange = () => { creator.concept = concept.value; };
-        grid.append(field("소리 종류", "파일에 남기는 분류 표시입니다(추출 방식은 같음). 최대 30초, 1초당 약 80토큰. 오디오 레퍼런스는 이미지·영상 레퍼런스가 하나 이상 있어야 쓸 수 있습니다.", concept));
-      }
-      if (hasVisual && creator.mode === "compressed") {
-        // Tokens ride through every sampling step: frames x (grid/2)^2 per reference.
-        const pool = document.createElement("select");
-        for (const [value, label] of [[8, "8×8 — 가장 가벼움, 디테일 적음"], [16, "16×16 — 기본"], [24, "24×24"], [32, "32×32 — 인물·얼굴 추천, 토큰 4배"], [48, "48×48 — 토큰 9배"], [64, "64×64 — 원본에 가까움, 토큰 16배"]]) pool.append(new Option(label, value));
-        pool.value = creator.pool; pool.onchange = () => { creator.pool = Number(pool.value); redraw(); };
-        const perFrame = (creator.pool / 2) ** 2;
-        grid.append(field("압축 격자", `격자가 클수록 디테일이 남고 토큰이 늘어납니다. 이미지 1장 최대 약 ${perFrame}토큰(비율에 따라 더 적음).`, pool));
-        if (hasVideo) {
-          const frames = document.createElement("select");
-          for (const [value, label] of [[8, "8 — 가벼움"], [16, "16 — 기본"], [32, "32 — 동작이 중요할 때"]]) frames.append(new Option(label, value));
-          frames.value = creator.frames; frames.onchange = () => { creator.frames = Number(frames.value); redraw(); };
-          grid.append(field("영상 프레임 수", `영상에서 남길 잠재 프레임 수(최대값)입니다. 영상 1개 최대 약 ${perFrame * creator.frames}토큰(비율에 따라 더 적음). 토큰이 많을수록 생성이 느려집니다.`, frames));
-        }
-      }
-      if (!all) grid.append(field("설명", "프롬프트에 함께 들어갈 설명입니다. 나중에 바꿀 수 있습니다.", description));
-      const removeWrap = document.createElement("span"); removeWrap.className = "dp-h3-refmod-toggle";
-      const removeBox = document.createElement("input"); removeBox.type = "checkbox"; removeBox.checked = creator.removeSource ?? hasVideo; removeBox.onchange = () => { creator.removeSource = removeBox.checked; };
-      const removeText = document.createElement("span"); removeText.textContent = "만든 뒤 원본을 타임라인에서 빼기";
-      removeWrap.append(removeBox, removeText);
-      grid.append(field("원본 레퍼런스 처리", "원본이 타임라인에 남아 있으면 원본 토큰도 그대로 들어갑니다. 영상은 빼야 빨라집니다. 뺀 뒤에는 프롬프트의 <Picture N>·<Video N> 번호가 당겨지니 <RefMod N>으로 바꿔 쓰세요. (파일은 input 폴더에 그대로 남습니다.)", removeWrap));
-      if (hasVisual && (creator.options.vaes || []).length > 1) {
-        const vae = document.createElement("select"); for (const v of creator.options.vaes) vae.append(new Option(v, v)); vae.value = creator.vae; vae.onchange = () => { creator.vae = vae.value; };
-        grid.append(field("Video VAE", "인코딩에 쓸 MiniMax H3 Video VAE입니다.", vae));
-      }
-      card.append(grid);
-      const run = document.createElement("button"); run.type = "button"; run.className = "dp-h3-refmod-add"; run.style.margin = "0 12px 12px"; run.textContent = creator.busy ? "만드는 중…" : "RefMod 만들기"; run.disabled = creator.busy;
-      run.onclick = async () => {
-        const batch = creator.source === ALL;
-        const targets = creatorSources().filter(entry => batch ? !entry.track : entry.id === creator.source);
-        if (!targets.length || creator.busy) return;
-        creator.busy = true; creator.error = false;
-        const rows = state.refmods || (state.refmods = []);
-        const lines = [];
-        const dropSource = creator.removeSource ?? targets.some(item => item.type === "video");
-        const made = [];
-        try {
-          for (const [index, item] of targets.entries()) {
-            const wanted = batch ? creatorName(item) : creator.name;
-            const text = batch ? "" : creator.description.trim();
-            creator.message = `VAE로 인코딩하는 중입니다 (${index + 1}/${targets.length}). 영상은 시간이 걸릴 수 있습니다.`; redraw();
-            const response = await api.fetchApi("/director_plus/refmod/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: item.type, source_type: item.from, concept_type: creator.concept, with_audio: item.type === "video" && creator.withAudio, value: item.value, trim_start: item.trim_start ?? 0, trim_end: item.trim_end ?? null, name: wanted, mode: creator.mode, description: text, vae: creator.vae, pool: creator.pool, frames: creator.frames }) });
-            const result = await response.json();
-            // In a batch an existing file of that name is reused instead of stopping the rest.
-            if (!result.ok && !(batch && result.exists)) throw new Error(result.error || "RefMod를 만들지 못했습니다.");
-            const saved = result.ok ? result.name : wanted.trim();
-            let row = rows.find(entry => entry.name === saved);
-            if (!row) {
-              // Lowest slot that is empty or switched off: a disabled row would otherwise push the new file to a
-              // higher number while the prompt still says <RefMod 1>.
-              const active = new Set(rows.filter(entry => entry.enabled !== false && entry.name).map(entry => entry.slot));
-              const slot = Array.from({ length: 8 }, (_, i) => i + 1).find(value => !active.has(value));
-              if (slot) {
-                const index = rows.findIndex(entry => entry.slot === slot); if (index >= 0) rows.splice(index, 1);
-                row = { slot, name: saved, description: text, strength: 1, enabled: true, media_type: result.kind || item.type }; rows.push(row); rows.sort((a, b) => a.slot - b.slot);
-              }
-            } else row.enabled = true;
-            if (!item.track) made.push(item.itemId);
-            lines.push(`'${saved}' ${result.ok ? `저장 완료${result.kinds?.length > 1 ? " (영상+소리)" : ""} (${result.tokens ?? "?"} 토큰)` : "이미 있어 기존 파일 사용"}` + (row ? ` · <RefMod ${row.slot}>` : " · 슬롯이 가득 차서 선택 못 함"));
-          }
-          creator.message = lines.join(" / ") + (dropSource ? " / 원본을 타임라인에서 뺐습니다." : "");
-        } catch (error) { creator.error = true; creator.message = [...lines, error.message].join(" / "); }
-        finally { if (dropSource) made.forEach(id => remove(id)); creator.removeSource = null; emit(); refModLibrary.loaded = false; creator.busy = false; refreshLibrary(); render(); }
-      };
-      card.append(run);
-      if (creator.message) { const note = help(creator.error ? "실패" : "안내", creator.message); note.style.margin = "0 12px 12px"; if (creator.error) note.style.borderLeftColor = "#ff6f6f"; card.append(note); }
-      return card;
-    };
     const redraw = () => {
       content.replaceChildren();
       const rows = state.refmods || (state.refmods = []);
@@ -480,7 +345,7 @@ function install(node) {
       content.append(help("How this works", "1. Choose a saved reference. 2. Enable it and set its influence. 3. Click INSERT IN PROMPT to insert its full expanded reference text—e.g. <Video 1>: digital animation, ...—at your cursor."));
       const add = document.createElement("button"); add.type = "button"; add.className = "dp-h3-refmod-add"; add.textContent = "+ Add reference"; add.disabled = rows.length >= 8;
       add.onclick = () => { const used = new Set(rows.map(row => row.slot)); const slot = Array.from({ length: 8 }, (_, index) => index + 1).find(value => !used.has(value)); if (slot) { rows.push({ slot, name: "", description: "", strength: 1, enabled: false }); emit(); redraw(); } };
-      content.append(add, createSection());
+      content.append(add);
       if (!rows.length) content.append(help("No references selected", "Add a reference to bind a file from models/refmods to a prompt tag."));
       for (const row of [...rows].sort((a, b) => a.slot - b.slot)) {
         const card = document.createElement("section"); card.className = "dp-h3-refmod-card";
@@ -633,8 +498,8 @@ function install(node) {
     const definitions = [], retention = [], roles = [];
     let hasVisual = false, hasAudio = false;
     const note = value => String(value || "").trim().replace(/\s+/g, " ");
-    const add = (kind, role, description, source, fixedLabel) => {
-      const label = fixedLabel || `<${{ image: "Picture", video: "Video", audio: "Audio" }[kind]} ${++counts[kind]}>`;
+    const add = (kind, role, description, source) => {
+      const label = `<${{ image: "Picture", video: "Video", audio: "Audio" }[kind]} ${++counts[kind]}>`;
       const detail = note(description);
       definitions.push(`${label} ${role}${source ? ` (${source})` : ""}${detail ? ` User description: ${detail}` : ""}.`);
       if (kind === "audio") {
@@ -664,9 +529,7 @@ function install(node) {
       const kinds = Array.isArray(entry?.kinds) && entry.kinds.length ? entry.kinds : [entry?.kind || row.media_type];
       for (const kind of kinds) {
         if (!["image", "video", "audio"].includes(kind)) continue;
-        // Long video numbers RefMods per scene on the server, so keep the <RefMod N> tag.
-        add(kind, `is a saved ${kind} reference`, row.description || entry?.description, `RefMod ${row.slot}`,
-          state.long_video?.enabled ? `<RefMod ${row.slot}>` : undefined);
+        add(kind, `is a saved ${kind} reference`, row.description || entry?.description, `RefMod ${row.slot}`);
       }
     }
     if (!definitions.length) return null;
@@ -735,8 +598,7 @@ function install(node) {
         counts[kind]++;
         return `<${{ image: "Picture", video: "Video", audio: "Audio" }[kind]} ${counts[kind]}>`;
       });
-      // Long video numbers RefMods per scene on the server, so insert the <RefMod N> tag itself.
-      const tag = state.long_video?.enabled ? `<RefMod ${row.slot}>` : labels.join(" ");
+      const tag = labels.join(" ");
       const description = (row.description || "").trim();
       tags[row.slot] = tag;
       expansions[row.slot] = description ? `${tag}: ${description}` : tag;

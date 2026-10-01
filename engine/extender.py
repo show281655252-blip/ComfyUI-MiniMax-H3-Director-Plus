@@ -1788,7 +1788,6 @@ def _make_ref2va_conditioning(
     active_video_slots,
     active_audio_slots=None,
     audio_native_offset: int = 0,
-    refmod_tags=None,
 ):
     latent = _empty_av_latent(width, height, frame_count)
     resolved_prompt = _remap_numbered_tags(
@@ -1798,10 +1797,6 @@ def _make_ref2va_conditioning(
         active_audio_slots=active_audio_slots,
         audio_native_offset=audio_native_offset,
     )
-    if refmod_tags is not None:
-        # <RefMod N> is untouched by the slot remap; it becomes this scene's native labels.
-        from . import director_refmod
-        resolved_prompt = director_refmod.translate(resolved_prompt, refmod_tags)
     tokens = clip.tokenize(resolved_prompt, minimax_ref_items=ref_items)
     cond = clip.encode_from_tokens_scheduled(tokens)
     if ref_blocks:
@@ -4967,10 +4962,6 @@ class MiniMaxH3Extender:
         active_picture_slots = None
         active_video_slots = None
         prepared_ref_frame_count = None
-        # Director RefMods: stored latents shared by every scene, decoded once on first use.
-        director_refmods = kwargs.get("director_refmods") or []
-        director_refmods_prepared = None
-        refmod_visual_count = sum(1 for item in director_refmods if item.get("kind") != "audio")
         # Keep image VAE blocks once (duration-independent) and at most two
         # duration-specific video/audio latent block sets. Returning to a recent
         # duration therefore avoids expensive VAE re-encoding without retaining
@@ -5169,7 +5160,6 @@ class MiniMaxH3Extender:
                 _reference_count(clip_refs)
                 + active_clip_video_count
                 + selected_ref_audio_count
-                + len(director_refmods)
             )
             if clip_mixed_ref_count > MAX_MIXED_REF_ITEMS:
                 raise ValueError(
@@ -5243,7 +5233,7 @@ class MiniMaxH3Extender:
                 if isinstance(item, dict) and item.get("type") == "audio"
             )
             if selected_ref_audio_count:
-                if (_reference_count(clip_refs) + active_clip_video_count + refmod_visual_count) < 1:
+                if (_reference_count(clip_refs) + active_clip_video_count) < 1:
                     raise ValueError(
                         "MiniMax H3 Extender: standalone reference audio requires at least one image or video reference."
                     )
@@ -5256,16 +5246,6 @@ class MiniMaxH3Extender:
                 )
                 clip_ref_items.extend(audio_items)
                 clip_ref_blocks.extend(audio_blocks)
-
-            refmod_tags = None
-            if director_refmods:
-                from . import director_refmod
-                if director_refmods_prepared is None:
-                    director_refmods_prepared = director_refmod.prepare(director_refmods, vae)
-                # After the scene's own references, as the single-video Guide does.
-                refmod_tags = director_refmod.append(clip_ref_items, clip_ref_blocks, director_refmods_prepared)
-                _LOG.info("H3 Extender: Clip %d RefMods %s", i + 1,
-                          ", ".join(f"<RefMod {slot}> -> {tag}" for slot, tag in sorted(refmod_tags.items())))
 
             clip_model, clip_text_encoder = _apply_per_clip_loras(
                 self, model, clip, cfg.get("loras"), i
@@ -5284,7 +5264,6 @@ class MiniMaxH3Extender:
                 clip_video_slots,
                 active_audio_slots=selected_audio_slots,
                 audio_native_offset=audio_native_offset,
-                refmod_tags=refmod_tags,
             )
 
             trim_frames = None

@@ -78,9 +78,7 @@ def _translate_refmods(value, tags):
     def replace(match):
         slot = int(match.group(1))
         if slot not in tags:
-            active = ", ".join(f"<RefMod {number}>" for number in sorted(tags)) or "없음"
-            raise ValueError(f"프롬프트의 <RefMod {slot}>에 켜진 RefMod가 없습니다 (켜진 슬롯: {active}). "
-                             f"SAVED REFERENCES에서 {slot}번 슬롯에 RefMod를 선택하거나, 프롬프트 태그 번호를 켜진 슬롯에 맞추세요.")
+            raise ValueError(f"<RefMod {slot}> has no active reference. Select it or remove the tag.")
         return tags[slot]
     return REFMOD_ALIAS.sub(replace, value)
 
@@ -317,11 +315,7 @@ class DirectorPlusTimeline:
             validate_reference_limits(images=images, videos=videos, audios=audios,
                                       audio_has_visual=bool(images or videos or refmod_items))
 
-        if long_video.get("enabled"):
-            # Scenes differ in their own references; the long-video engine numbers RefMods per scene.
-            tag_map = {item["slot"]: f"<RefMod {item['slot']}>" for item in refmod_items}
-        else:
-            tag_map = _refmod_tag_map(refmod_items, ref_images, ref_videos, ref_video_audios, ref_audios)
+        tag_map = _refmod_tag_map(refmod_items, ref_images, ref_videos, ref_video_audios, ref_audios)
         prompt = _translate_refmods(prompt, tag_map)
         for key in ("simple_prompt", "imd", "soundscape", "music"):
             if isinstance(merged.get(key), str):

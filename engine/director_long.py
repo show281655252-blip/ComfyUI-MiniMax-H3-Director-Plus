@@ -35,7 +35,6 @@ from comfy_extras.nodes_minimax_h3 import _encode_ref_audio
 from .extender import MiniMaxH3Extender, _manual_effective_resolution
 from . import director_lbh
 from . import director_audio_regen
-from . import director_refmod
 
 from .motion_context_disk import MiniMaxH3MotionContextDiskFinalDecode, _find_ffmpeg, _comfy_media_item, _video_output_from_path, normalize_full_batch_export_profile
 
@@ -137,9 +136,6 @@ def prepare_state(guide):
         signature = json.dumps([source_key, guide["width"], guide["height"], state.get("context_length", "22"), state["lbh"]])
     if state.get("audio_regen"):
         signature = json.dumps([signature, state["audio_regen"]])
-    refmods = director_refmod.signature(director_refmod.rows_from_items(guide.get("minimax_ref_items")))
-    if refmods:
-        signature = json.dumps([signature, {"refmods": refmods}])
 
     owner = "director_" + state["project_id"] + "_" + hashlib.sha256(signature.encode()).hexdigest()[:12]
 
@@ -267,6 +263,10 @@ class DirectorPlusGenerate:
                  lbh_full_first_pass=False, audio_regen_enabled=False, audio_regen_model=None,
                  prompt=None, unique_id=None):
 
+        if guide.get("minimax_ref_items"):
+
+            raise ValueError("Director long video: use image/video/audio references instead of RefMod files, or turn long video off.")
+
         guide = dict(guide)
         guide["long_video"] = copy.deepcopy(guide["long_video"])
         lbh = director_lbh.settings(lbh_enabled, lbh_scale, lbh_model_name, lbh_full_first_pass)
@@ -325,7 +325,6 @@ class DirectorPlusGenerate:
 
             unique_id=owner, sigmas=sigmas, initial_context=initial_context, director_lbh=lbh,
             director_audio_regen={"config": audio_regen, "model": audio_regen_model} if audio_regen else None,
-            director_refmods=guide.get("minimax_ref_items") or None,
             director_export_profile=output_export_profile(prompt, unique_id), **media,
 
         )
