@@ -133,8 +133,10 @@ def create(payload):
         frames = int(payload.get("frames") or 16)
     except (TypeError, ValueError) as exc:
         raise ValueError("압축 격자와 프레임 수는 숫자여야 합니다.") from exc
-    if not 2 <= pool <= 64 or not 1 <= frames <= 64:
-        raise ValueError("압축 격자는 2~64, 프레임 수는 1~64 범위여야 합니다.")
+    # Full samples source frames (the whole clip when frames >= its length); Compressed keeps latent frames.
+    max_frames = 4096 if mode == MODES["full"] else 64
+    if not 2 <= pool <= 64 or not 1 <= frames <= max_frames:
+        raise ValueError(f"압축 격자는 2~64, 프레임 수는 1~{max_frames} 범위여야 합니다.")
     vaes = video_vaes()
     vae_name = payload.get("vae") or (vaes[0] if vaes else None)
     if vae_name not in vaes:

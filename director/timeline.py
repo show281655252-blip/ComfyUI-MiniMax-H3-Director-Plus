@@ -78,7 +78,9 @@ def _translate_refmods(value, tags):
     def replace(match):
         slot = int(match.group(1))
         if slot not in tags:
-            raise ValueError(f"<RefMod {slot}> has no active reference. Select it or remove the tag.")
+            active = ", ".join(f"<RefMod {number}>" for number in sorted(tags)) or "없음"
+            raise ValueError(f"프롬프트의 <RefMod {slot}>에 켜진 RefMod가 없습니다 (켜진 슬롯: {active}). "
+                             f"SAVED REFERENCES에서 {slot}번 슬롯에 RefMod를 선택하거나, 프롬프트 태그 번호를 켜진 슬롯에 맞추세요.")
         return tags[slot]
     return REFMOD_ALIAS.sub(replace, value)
 

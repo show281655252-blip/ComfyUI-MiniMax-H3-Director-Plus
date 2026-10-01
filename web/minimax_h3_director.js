@@ -451,8 +451,14 @@ function install(node) {
             const saved = result.ok ? result.name : wanted.trim();
             let row = rows.find(entry => entry.name === saved);
             if (!row) {
-              const used = new Set(rows.map(entry => entry.slot)); const slot = Array.from({ length: 8 }, (_, i) => i + 1).find(value => !used.has(value));
-              if (slot) { row = { slot, name: saved, description: text, strength: 1, enabled: true, media_type: result.kind || item.type }; rows.push(row); }
+              // Lowest slot that is empty or switched off: a disabled row would otherwise push the new file to a
+              // higher number while the prompt still says <RefMod 1>.
+              const active = new Set(rows.filter(entry => entry.enabled !== false && entry.name).map(entry => entry.slot));
+              const slot = Array.from({ length: 8 }, (_, i) => i + 1).find(value => !active.has(value));
+              if (slot) {
+                const index = rows.findIndex(entry => entry.slot === slot); if (index >= 0) rows.splice(index, 1);
+                row = { slot, name: saved, description: text, strength: 1, enabled: true, media_type: result.kind || item.type }; rows.push(row); rows.sort((a, b) => a.slot - b.slot);
+              }
             } else row.enabled = true;
             if (!item.track) made.push(item.itemId);
             lines.push(`'${saved}' ${result.ok ? `저장 완료${result.kinds?.length > 1 ? " (영상+소리)" : ""} (${result.tokens ?? "?"} 토큰)` : "이미 있어 기존 파일 사용"}` + (row ? ` · <RefMod ${row.slot}>` : " · 슬롯이 가득 차서 선택 못 함"));
