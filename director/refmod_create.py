@@ -23,6 +23,7 @@ from .helper_refmod_format import refmods_roots
 
 PACK_NODE = "MiniMaxH3RefModExtract"
 AUDIO_NODE = "MiniMaxH3RefModAudioExtract"
+MASTER_NODE = "MiniMaxH3RefModMasterExtract"  # visual + audio in one v5 bundle file
 AUDIO_CONCEPTS = ("voice", "singing", "music_style", "sound_fx", "ambience")
 AUDIO_MAX_SECONDS = 30.0
 PACK_NAME = "ComfyUI-MiniMaxH3Mod"
@@ -79,8 +80,8 @@ def _trim(payload):
     return float(payload.get("trim_start") or 0.0), None if trim_end is None else float(trim_end)
 
 
-def _create_audio(payload, name):
-    extract = nodes.NODE_CLASS_MAPPINGS[AUDIO_NODE]
+def _audio_inputs(payload, from_video):
+    """Concept, audio VAE name and decoded audio for an audio RefMod (or a bundle's audio member)."""
     concept = payload.get("concept_type") or "voice"
     if concept not in AUDIO_CONCEPTS:
         raise ValueError("알 수 없는 소리 종류입니다.")
@@ -89,10 +90,16 @@ def _create_audio(payload, name):
     if vae_name not in vaes:
         raise ValueError("MiniMax H3 Audio VAE(minimax_h3_audio_vae…)를 models/vae에서 찾지 못했습니다.")
     trim_start, trim_end = _trim(payload)
-    loader = load_embedded_video_audio if payload.get("source_type") == "video" else load_audio
+    loader = load_embedded_video_audio if from_video else load_audio
     audio = loader(payload["value"], folder_paths.get_input_directory(), trim_start=trim_start, trim_end=trim_end)
     if not isinstance(audio, dict) or audio.get("waveform") is None or audio["waveform"].shape[-1] == 0:
-        raise ValueError("이 레퍼런스에는 소리가 없습니다.")
+        raise ValueError("이 영상에는 소리가 없습니다." if from_video else "이 레퍼런스에는 소리가 없습니다.")
+    return concept, vae_name, audio
+
+
+def _create_audio(payload, name):
+    extract = nodes.NODE_CLASS_MAPPINGS[AUDIO_NODE]
+    concept, vae_name, audio = _audio_inputs(payload, payload.get("source_type") == "video")
     vae = nodes.VAELoader().load_vae(vae_name)[0]
     try:
         with torch.inference_mode(), _no_progress():
@@ -141,17 +148,33 @@ def create(payload):
         refs = {"refs_video": {"ref_video_1": load_video(
             payload["value"], input_directory, trim_start=trim_start, trim_end=trim_end)}}
 
+    description = str(payload.get("description") or "").strip()
+    with_audio = kind == "video" and bool(payload.get("with_audio"))
+    if with_audio:
+        if MASTER_NODE not in nodes.NODE_CLASS_MAPPINGS:
+            raise ValueError(f"영상+소리 RefMod를 만들려면 {PACK_NAME}의 Create H3 RefMod Master 노드가 필요합니다.")
+        concept, audio_vae_name, audio = _audio_inputs(payload, True)
     vae = nodes.VAELoader().load_vae(vae_name)[0]
+    audio_vae = nodes.VAELoader().load_vae(audio_vae_name)[0] if with_audio else None
     try:
         with torch.inference_mode(), _no_progress():  # nodes run under inference mode in a normal queue
             # max_tokens=0: no budget, the chosen grid and frame count decide the size
-            output = extract.execute(name=name, mode=mode, vae=vae, max_tokens=0,
-                                     pool_h=pool, pool_w=pool, latent_frames=frames,
-                                     description=str(payload.get("description") or "").strip(), save=True, **refs)
+            visual = dict(vae=vae, max_tokens=0, pool_h=pool, pool_w=pool, latent_frames=frames, **refs)
+            if with_audio:
+                # One v5 bundle file: the slot then expands to "<Video n> <Audio m>".
+                output = nodes.NODE_CLASS_MAPPINGS[MASTER_NODE].execute(
+                    name=name, mode=mode, audio=audio, audio_vae=audio_vae, audio_max_seconds=AUDIO_MAX_SECONDS,
+                    audio_max_tokens=5120, audio_budget_policy="truncate", audio_concept_type=concept,
+                    max_total_tokens=0, save=True, description=description, save_layout="bundle", **visual)
+            else:
+                output = extract.execute(name=name, mode=mode, description=description, save=True, **visual)
     finally:
-        del vae
+        del vae, audio_vae
         comfy.model_management.soft_empty_cache()
     details = json.loads(output.result[1])
+    if with_audio:
+        return {"ok": True, "name": name, "kind": "video", "kinds": [ref["kind"] for ref in details.get("refs", [])],
+                "tokens": details.get("total_tokens")}
     return {"ok": True, "name": name, "kind": details.get("kind", kind), "tokens": details.get("tokens")}
 
 

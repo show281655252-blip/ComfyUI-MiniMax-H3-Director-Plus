@@ -337,7 +337,7 @@ function install(node) {
     close.onclick = closeOverlay; done.onclick = closeOverlay; overlay.onpointerdown = event => { if (event.target === overlay) closeOverlay(); }; document.addEventListener("keydown", onKey);
     const help = (headline, text) => { const box = document.createElement("div"); box.className = "dp-h3-refmod-help"; const strong = document.createElement("strong"); strong.textContent = headline; const copy = document.createElement("span"); copy.textContent = text; box.append(strong, copy); return box; };
     // Director Plus: build a RefMod file from a timeline image/video/audio (server runs ComfyUI-MiniMaxH3Mod's extractors).
-    const creator = { open: false, busy: false, message: "", error: false, options: null, source: "", name: "", mode: "full", description: "", vae: "", pool: 16, frames: 16, removeSource: null, concept: "voice" };
+    const creator = { open: false, busy: false, message: "", error: false, options: null, source: "", name: "", mode: "full", description: "", vae: "", pool: 16, frames: 16, removeSource: null, concept: "voice", withAudio: false };
     // One entry per thing that can become a RefMod; a video also offers its soundtrack (`track`, never part of "전체").
     const creatorSources = () => (state.items || []).filter(item => item.value).flatMap(item => {
       const base = { itemId: item.id, value: item.value, trim_start: item.trim_start, trim_end: item.trim_end };
@@ -391,7 +391,14 @@ function install(node) {
         grid.append(field("RefMod 이름", "파일 이름 그대로 하나씩 저장하고, 슬롯도 하나씩 씁니다. 같은 이름이 이미 있으면 그 파일을 선택합니다.", names));
       } else grid.append(field("RefMod 이름", "models/refmods에 이 이름으로 저장됩니다.", name));
       if (hasVisual) grid.append(field("방식", "Full은 원본을 그대로 인코딩, Compressed는 압축해 토큰을 줄입니다.", modeSelect));
-      if (hasAudio) {
+      if (hasVideo) {
+        const audioWrap = document.createElement("span"); audioWrap.className = "dp-h3-refmod-toggle";
+        const audioBox = document.createElement("input"); audioBox.type = "checkbox"; audioBox.checked = creator.withAudio; audioBox.onchange = () => { creator.withAudio = audioBox.checked; redraw(); };
+        const audioText = document.createElement("span"); audioText.textContent = "영상의 소리도 함께 넣기 (한 파일)";
+        audioWrap.append(audioBox, audioText);
+        grid.append(field("영상의 소리", "영상과 그 소리를 한 RefMod 파일(번들)에 담습니다. 슬롯 하나로 <Video> <Audio>가 함께 들어가고, 강도·켜기도 함께 적용됩니다. 소리가 없는 영상이면 실패합니다.", audioWrap));
+      }
+      if (hasAudio || (hasVideo && creator.withAudio)) {
         const concept = document.createElement("select");
         for (const [value, label] of [["voice", "목소리"], ["singing", "노래"], ["music_style", "음악 스타일"], ["sound_fx", "효과음"], ["ambience", "배경음"]]) concept.append(new Option(label, value));
         concept.value = creator.concept; concept.onchange = () => { creator.concept = concept.value; };
@@ -437,7 +444,7 @@ function install(node) {
             const wanted = batch ? creatorName(item) : creator.name;
             const text = batch ? "" : creator.description.trim();
             creator.message = `VAE로 인코딩하는 중입니다 (${index + 1}/${targets.length}). 영상은 시간이 걸릴 수 있습니다.`; redraw();
-            const response = await api.fetchApi("/director_plus/refmod/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: item.type, source_type: item.from, concept_type: creator.concept, value: item.value, trim_start: item.trim_start ?? 0, trim_end: item.trim_end ?? null, name: wanted, mode: creator.mode, description: text, vae: creator.vae, pool: creator.pool, frames: creator.frames }) });
+            const response = await api.fetchApi("/director_plus/refmod/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: item.type, source_type: item.from, concept_type: creator.concept, with_audio: item.type === "video" && creator.withAudio, value: item.value, trim_start: item.trim_start ?? 0, trim_end: item.trim_end ?? null, name: wanted, mode: creator.mode, description: text, vae: creator.vae, pool: creator.pool, frames: creator.frames }) });
             const result = await response.json();
             // In a batch an existing file of that name is reused instead of stopping the rest.
             if (!result.ok && !(batch && result.exists)) throw new Error(result.error || "RefMod를 만들지 못했습니다.");
@@ -448,7 +455,7 @@ function install(node) {
               if (slot) { row = { slot, name: saved, description: text, strength: 1, enabled: true, media_type: result.kind || item.type }; rows.push(row); }
             } else row.enabled = true;
             if (!item.track) made.push(item.itemId);
-            lines.push(`'${saved}' ${result.ok ? `저장 완료 (${result.tokens ?? "?"} 토큰)` : "이미 있어 기존 파일 사용"}` + (row ? ` · <RefMod ${row.slot}>` : " · 슬롯이 가득 차서 선택 못 함"));
+            lines.push(`'${saved}' ${result.ok ? `저장 완료${result.kinds?.length > 1 ? " (영상+소리)" : ""} (${result.tokens ?? "?"} 토큰)` : "이미 있어 기존 파일 사용"}` + (row ? ` · <RefMod ${row.slot}>` : " · 슬롯이 가득 차서 선택 못 함"));
           }
           creator.message = lines.join(" / ") + (dropSource ? " / 원본을 타임라인에서 뺐습니다." : "");
         } catch (error) { creator.error = true; creator.message = [...lines, error.message].join(" / "); }
