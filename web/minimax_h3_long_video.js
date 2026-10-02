@@ -142,6 +142,27 @@ export function renderLongVideo(node, state, emit) {
   const refresh = () => node.__directorPlusH3Render?.();
 
   const save = () => { emit(); node.graph?.setDirtyCanvas(true, true); };
+  // H3 makes 17k+5 frames at 24 fps: a scene length is rounded up to that grid, a reference
+  // video (its trim range, at most 362 frames) is rounded down. A scene of exactly the rounded-down
+  // reference length lines the two up frame for frame.
+  const referenceFit = () => {
+    const videos = (state.items || [])
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item.enabled !== false && item.type === "video" && item.media_mode !== "audio")
+      .sort((a, b) => (a.item.slot ?? a.index) - (b.item.slot ?? b.index) || a.index - b.index);
+    if (!videos.length) throw new Error("타임라인에 영상 레퍼런스가 없습니다.");
+    const item = videos[0].item;
+    const start = Number(item.trim_start) || 0;
+    const end = Number(item.trim_end ?? item.source_duration);
+    const source = end - start;
+    if (!Number.isFinite(source) || source <= 0) throw new Error("영상 레퍼런스의 길이를 알 수 없습니다. 영상을 다시 넣어 보세요.");
+    const sourceFrames = Math.round(source * 24);
+    let frames = Math.min(sourceFrames, 362);
+    while (frames >= 5 && frames % 17 !== 5) frames -= 1;
+    if (frames < 5) throw new Error("영상 레퍼런스가 너무 짧습니다.");
+    const name = String(item.value || "").split(/[\\/]/).pop();
+    return { seconds: Math.round(frames / 24 * 1000) / 1000, frames, source, sourceFrames, label: `<Video 1> ${name}` };
+  };
 
   const button = (parent, text, action) => {
 
@@ -661,17 +682,29 @@ export function renderLongVideo(node, state, emit) {
     prompt.onchange = async () => { if (prompt.readOnly) return; try { await invalidate(i); c.prompt = prompt.value; save(); } catch (e) { rt.message = e.message; } refresh(); };
 
     const numbers = element("div", null, card); numbers.className = "dl-card-grid";
-    const number = (label, key, min, max) => {
+    const number = (label, key, min, max, step = 1) => {
       const wrap = element("label", null, numbers); wrap.className = "dl-field";
       element("span", label, wrap).className = "dl-label";
-      const input = element("input", null, wrap); input.type = "number"; input.min = min; input.max = max; input.value = c[key];
+      const input = element("input", null, wrap); input.type = "number"; input.min = min; input.max = max; input.step = step; input.value = c[key];
       input.disabled = locked;
       input.onchange = async () => { try { await invalidate(i); c[key] = Number(input.value); save(); refresh(); } catch (e) { rt.message = e.message; refresh(); } };
     };
     number("Seed", "seed", 0, Number.MAX_SAFE_INTEGER);
     const dice = button(numbers, "🎲", async () => { await invalidate(i); c.seed = Math.floor(Math.random() * 1e12); });
     dice.className = "dl-dice"; dice.title = "새 시드"; dice.disabled ||= c.validated;
-    number("길이(초)", "duration", 1, 1000);
+    number("길이(초)", "duration", 1, 1000, "any");
+    const fit = element("button", "레퍼런스 길이에 맞추기", numbers);
+    fit.className = "dl-small"; fit.disabled = locked;
+    fit.title = "타임라인의 첫 영상 레퍼런스(자르기 구간)와 생성 프레임 수가 같아지도록 길이를 맞춥니다";
+    fit.onclick = async () => {
+      if (locked) return;
+      try {
+        const fitted = referenceFit();
+        if (Math.abs(Number(c.duration) - fitted.seconds) > 1e-6) { await invalidate(i); c.duration = fitted.seconds; }
+        rt.message = `장면 ${i + 1}: ${fitted.label} ${fitted.source.toFixed(2)}초(${fitted.sourceFrames}프레임) → 길이 ${fitted.seconds}초(${fitted.frames}프레임, 레퍼런스와 같음)`;
+      } catch (e) { rt.message = e.message; }
+      save(); refresh();
+    };
 
     const foot = element("div", null, card); foot.className = "dl-card-row";
     const again = button(foot, "다시 생성", async () => { rt.selected = i; await invalidate(i); save(); await app.queuePrompt(0, 1); });
