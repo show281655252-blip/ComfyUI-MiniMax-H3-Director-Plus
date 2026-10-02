@@ -119,6 +119,36 @@ def _video_items(link, prompt_graph, node_id_hint):
             and item.get("media_mode", "video") in ("video", "video_audio")]
 
 
+def _has_audio(path):
+    try:
+        import av
+        with av.open(path) as container:
+            return bool(container.streams.audio)
+    except Exception:
+        return True
+
+
+def _drop_silent_soundtracks(link, labels, videos, notes):
+    """A V+A item on a clip without sound is generated as V only (director/timeline.py), so the
+    writer must not get an <Audio n> soundtrack label for it; later audio labels shift down."""
+    silent = set()
+    for number, item in enumerate(videos, 1):
+        if item.get("media_mode") == "video_audio":
+            path = link.resolve_media_path(item.get("value"))
+            if path and not _has_audio(path):
+                silent.add(number)
+    if not silent:
+        return labels
+    kept = [label for label in labels
+            if not any(re.match(rf"<Audio \d+>: soundtrack of <Video {n}>", str(label)) for n in silent)]
+    counter = iter(range(1, len(kept) + 1))
+    kept = [re.sub(r"^<Audio \d+>:", lambda _m: f"<Audio {next(counter)}>:", str(label))
+            if str(label).startswith("<Audio ") else label for label in kept]
+    notes.append("Director Plus: " + ", ".join(f"<Video {n}>" for n in sorted(silent))
+                 + " is set to V+A but has no sound — used as video only.")
+    return kept
+
+
 def wrap_read_director(link):
     original = link.read_director
     if getattr(original, "_director_plus_video", False):
@@ -135,7 +165,7 @@ def wrap_read_director(link):
         except Exception as exc:
             out["notes"].append(f"Director Plus video analysis skipped: {exc}")
             return out
-        labels = list(out.get("other_labels") or [])
+        labels = _drop_silent_soundtracks(link, list(out.get("other_labels") or []), videos, out["notes"])
         for number, item in enumerate(videos, 1):
             tag = f"<Video {number}>:"
             index = next((i for i, label in enumerate(labels) if str(label).startswith(tag)), None)

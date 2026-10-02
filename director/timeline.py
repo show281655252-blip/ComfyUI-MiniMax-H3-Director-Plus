@@ -1,6 +1,7 @@
 # Modified for Director Plus isolation, 2026-09-26. See NOTICE.md for upstream attribution.
 """MiniMax H3 Director guide node."""
 import json
+import logging
 import math
 import re
 
@@ -10,7 +11,7 @@ from .helper_logging import log_dasiwa
 from .helper_minimax_h3_director import (
     align_frame_count, assemble_prompt, audio_duration, load_audio,
     load_embedded_video_audio, load_image, load_video, normalize_guide,
-    scale_input_media, validate_reference_limits,
+    resolve_input_path, scale_input_media, validate_reference_limits,
 )
 from .helper_minimax_h3_prompt_builder import (
     build_prompt, default_builder_state, has_builder_content, migrate_legacy_prompt, normalize_ref_schema,
@@ -18,6 +19,16 @@ from .helper_minimax_h3_prompt_builder import (
 )
 
 BASE_MODES = {"T2VA", "I2VA", "FL2VA", "L2VA"}
+
+
+def video_has_audio(path, input_directory):
+    """True when the clip has an audio stream (a V+A item on a silent clip falls back to V)."""
+    try:
+        import av
+        with av.open(resolve_input_path(path, input_directory)) as container:
+            return bool(container.streams.audio)
+    except Exception:
+        return True  # unreadable here: let the normal loader report the real problem
 REFMOD_ALIAS = re.compile(r"<\s*refmod\s*_?\s*(\d+)(?:\s*:[^>]+)?\s*>", re.I)
 
 
@@ -296,6 +307,13 @@ class DirectorPlusTimeline:
                         ref_videos[f"ref_video_{len(ref_videos) + 1}"] = video
                         video_duration = float(video.shape[0]) / frame_rate if hasattr(video, "shape") else item.get("duration")
                         videos.append({**item, "duration": video_duration})
+                    if video_mode in {"audio", "video_audio"} and isinstance(value, str) and input_directory \
+                            and not video_has_audio(value, input_directory):
+                        if video_mode == "audio":
+                            raise ValueError(f"'{value}' 영상에는 소리가 없습니다. 영상 항목을 V(영상만)로 바꾸거나 소리가 있는 파일을 쓰세요.")
+                        # V+A on a silent clip: use the picture only instead of failing the whole run.
+                        logging.warning("[Director Plus] '%s' has no audio stream; V+A is used as V (video only).", value)
+                        video_mode = "video"
                     if video_mode in {"audio", "video_audio"}:
                         audio = load_embedded_video_audio(value, input_directory, trim_start=trim_start, trim_end=trim_end) if isinstance(value, str) and input_directory else item.get("audio")
                         if video_mode == "video_audio":
