@@ -161,7 +161,11 @@ export const DirectorPlusPromptStudio = {
     const back = h("div", { class: "dp-ps-back" });
     const box = h("div", { class: "dp-ps" });
     back.append(box); document.body.append(back);
-    const close = () => { save(); back.remove(); document.removeEventListener("keydown", onKey, true); };
+    let chatUsed = false;
+    const close = () => {
+      save(); back.remove(); document.removeEventListener("keydown", onKey, true);
+      if (chatUsed) getJSON("/director_plus/prompt_studio/chat_unload", { model: data.chat?.llm?.model, ollama_url: data.writer?.ollama_url || "" }).catch(() => {});  // free the card for video generation
+    };
     const onKey = e => { if (e.key === "Escape" && document.activeElement?.tagName !== "SELECT") { e.stopPropagation(); close(); } };
     document.addEventListener("keydown", onKey, true);
     for (const name of ["pointerdown", "mousedown", "wheel", "keydown", "keyup"]) box.addEventListener(name, e => e.stopPropagation());
@@ -397,7 +401,95 @@ export const DirectorPlusPromptStudio = {
       data.prompt = r.prompt; data.brief = r.brief; data.briefReport = r.brief_report; data.report = r.report; save();
       result.value = data.prompt; showReport(); say(`작성 완료 (${r.seconds}초). 확인한 뒤 「적용」을 누르세요.`);
     });
-    const chatBtn = h("button", { text: "LLM과 대화하며 다듬기 (다음 단계에서 추가)", disabled: true, "data-off": "1" });
+    const applyNow = async () => {
+      const text = result.value.trim();
+      if (!text) throw new Error("적용할 프롬프트가 없습니다.");
+      if (long) {
+        if (!node.__directorLong?.setScenePrompt) throw new Error("장면 타임라인을 찾지 못했습니다.");
+        await node.__directorLong.setScenePrompt(sceneIndex(), text);
+        say(`장면 ${sceneIndex() + 1} 카드에 넣었습니다 (외부 프롬프트 OFF).`);
+      } else {
+        target.applyPrompt(text);
+        say(target.hasExternalPrompt() ? "Director 프롬프트에 넣었습니다. 단, 외부 프롬프트가 연결돼 있어 생성에는 외부 프롬프트가 쓰입니다." : "Director 프롬프트에 넣었습니다.", target.hasExternalPrompt());
+      }
+    };
+
+    // ---------------- conversation (LLM chat editing). Stateless server; the log lives in data.chat.
+    data.chat = Object.assign({ messages: [], llm: {} }, data.chat || {});
+    data.chat.llm = Object.assign({ model: "", temperature: 0.3, num_ctx: 16384, num_predict: -1, history_turns: 6, think: false }, data.chat.llm);
+    if (!data.chat.llm.model) data.chat.llm.model = data.writer.model;
+    let chatBusy = false;
+    const openChat = () => {
+      const chat = data.chat;
+      const pane = h("div", { style: "position:absolute;inset:0;background:#0f1416;display:flex;flex-direction:column;z-index:5" });
+      box.style.position = "relative";
+      const log = h("div", { style: "flex:1;overflow:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px" });
+      const input = h("textarea", { placeholder: "무엇이 이상한지, 어떻게 바꾸고 싶은지 적으세요. (Ctrl+Enter 전송)", style: "min-height:70px;flex:1" });
+      const sendBtn = h("button", { class: "primary", text: "보내기", style: "padding:10px 22px" });
+      const chatStatus = h("div", { class: "status" });
+      const bubble = (m, i) => {
+        const user = m.role === "user";
+        const el = h("div", { style: `max-width:880px;align-self:${user ? "flex-end" : "flex-start"};background:${user ? "#1f3a4a" : "#151c1f"};border:1px solid #2c3a41;border-radius:10px;padding:10px 14px;white-space:pre-wrap` });
+        el.append(h("div", { text: user ? m.content : (m.explanation || m.content) }));
+        if (!user && m.prompt) {
+          const same = m.prompt === result.value.trim();
+          const put = h("button", { class: "small", text: same ? "결과 칸에 들어 있음" : "결과 칸에 넣기", disabled: same });
+          put.onclick = () => { if (result.value.trim() !== m.prompt) data.previous = result.value; result.value = m.prompt; data.prompt = m.prompt; save(); put.textContent = "결과 칸에 들어 있음"; put.disabled = true; chatStatus.textContent = "결과 칸에 넣었습니다. 「적용」을 누르면 장면/Director에 들어갑니다."; chatStatus.classList.remove("err"); };
+          const now = h("button", { class: "small", text: "바로 적용" });
+          now.onclick = async () => { put.onclick(); try { await applyNow(); chatStatus.textContent = status.textContent; } catch (e) { chatStatus.textContent = e.message; chatStatus.classList.add("err"); } };
+          const view = h("details", {}, [h("summary", { text: "제안된 프롬프트 보기" }), h("div", { class: "report", style: "max-height:320px", text: m.prompt })]);
+          el.append(view, h("div", { class: "row", style: "margin-top:6px;justify-content:flex-start" }, [put, now]));
+        }
+        return el;
+      };
+      const renderLog = () => {
+        log.innerHTML = "";
+        if (!chat.messages.length) log.append(h("div", { class: "muted", text: "지금 결과 칸의 프롬프트를 두고 대화합니다. 무엇이 이상한지 적으면 원인을 설명하고, 고친 프롬프트를 제안합니다. 제안은 「결과 칸에 넣기」를 눌러야 반영되고, 이전 프롬프트로 되돌릴 수 있습니다." }));
+        chat.messages.forEach((m, i) => log.append(bubble(m, i)));
+        log.scrollTop = log.scrollHeight;
+      };
+      const llm = chat.llm, models = CATALOG.writer.model?.options || [];
+      const setField = (label, key, props) => { const inp = h("input", { type: "number", ...props }); inp.value = llm[key]; inp.onchange = () => { llm[key] = Number(inp.value); save(); }; return h("label", { class: "dp-ps-field" }, [h("span", { text: label }), inp]); };
+      const modelPick = h("select"); for (const o of models.includes(llm.model) ? models : [llm.model, ...models]) modelPick.append(h("option", { value: o, text: o })); modelPick.value = llm.model; modelPick.onchange = () => { llm.model = modelPick.value; save(); };
+      const think = h("input", { type: "checkbox" }); think.checked = llm.think; think.onchange = () => { llm.think = think.checked; save(); };
+      const settingsBox = h("details", { style: "margin:0 18px" }, [h("summary", { text: "대화 LLM 설정" }), h("div", { class: "dp-ps-grid4", style: "margin-top:8px" }, [
+        h("label", { class: "dp-ps-field" }, [h("span", { text: "대화 모델" }), modelPick]), setField("temperature", "temperature", { step: "0.05", min: "0", max: "2" }),
+        setField("문맥 길이 (토큰)", "num_ctx", { step: "1024", min: "2048", max: "131072" }), setField("최대 응답 토큰 (-1 무제한)", "num_predict", { step: "1", min: "-1" }),
+        setField("기억할 이전 대화 (턴)", "history_turns", { step: "1", min: "0", max: "30" }), h("label", { class: "dp-ps-field" }, [h("span", { text: "생각(think) 모드" }), h("div", { class: "chk" }, [think])])])]);
+      const closeChat = () => { pane.remove(); save(); };
+      const send = async () => {
+        const text = input.value.trim(); if (!text || chatBusy) return;
+        if (!llm.model) { chatStatus.textContent = "대화 모델을 고르세요."; chatStatus.classList.add("err"); settingsBox.open = true; return; }
+        chatBusy = true; sendBtn.disabled = true; chatStatus.classList.remove("err");
+        const t0 = Date.now(), tick = setInterval(() => { chatStatus.textContent = `생각 중… ${Math.round((Date.now() - t0) / 1000)}초`; }, 1000); chatStatus.textContent = "생각 중… 0초";
+        const pending = h("div", { style: "align-self:flex-end;background:#1f3a4a;border:1px solid #2c3a41;border-radius:10px;padding:10px 14px;white-space:pre-wrap;max-width:880px", text: text }); log.append(pending); log.scrollTop = log.scrollHeight;
+        try {
+          const p = payload();
+          const r = await getJSON("/director_plus/prompt_studio/chat", {
+            message: text, prompt: result.value, history: chat.messages.map(m => ({ role: m.role, content: m.role === "user" ? m.content : (m.explanation || m.content) })), llm,
+            ollama_url: data.writer.ollama_url || "",
+            context: { mode: p.director.mode, duration: p.director.duration, brief: data.brief || "",
+              references: pictures().slice(0, REF_MAX).map((_, i) => `<Picture ${i + 1}> role=${data.roles[i + 1] || "unset"}`),
+              scene: long ? { index: sceneIndex(), count: long.clips.length, context_frames: Number(long.context_length) || 0, previous_prompt: sceneIndex() > 0 ? long.clips[sceneIndex() - 1]?.prompt || "" : "" } : null } });
+          chat.messages.push({ role: "user", content: text }, { role: "assistant", content: r.reply, explanation: r.explanation, prompt: r.prompt });
+          if (chat.messages.length > 60) chat.messages.splice(0, chat.messages.length - 60);
+          chatUsed = true; input.value = ""; save(); renderLog();
+          chatStatus.textContent = r.prompt ? `답변 완료 (${r.seconds}초). 제안된 프롬프트를 확인하고 「결과 칸에 넣기」를 누르세요.` : `답변 완료 (${r.seconds}초).`;
+        } catch (e) { pending.remove(); chatStatus.textContent = e.message; chatStatus.classList.add("err"); }
+        clearInterval(tick); chatBusy = false; sendBtn.disabled = false;
+      };
+      sendBtn.onclick = send;
+      input.addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } });
+      const clear = h("button", { class: "small", text: "대화 지우기", onclick: () => { if (chatBusy || !chat.messages.length || !window.confirm("이 대화를 지울까요?")) return; chat.messages = []; save(); renderLog(); } });
+      pane.append(h("div", { class: "dp-ps-top" }, [h("h2", { text: "💬 LLM과 대화하며 다듬기" }), h("span", { class: "muted", text: long ? `장면 ${sceneIndex() + 1} · ${duration()}초` : `${duration()}초` }), h("span", { class: "grow" }), clear, h("button", { text: "← 돌아가기", onclick: closeChat })]),
+        settingsBox, log,
+        h("div", { style: "padding:10px 18px 14px;border-top:1px solid #243035;display:flex;flex-direction:column;gap:8px" }, [chatStatus, h("div", { class: "row", style: "align-items:stretch" }, [input, h("div", { style: "flex:0 0 auto;display:flex" }, [sendBtn])])]));
+      box.append(pane); renderLog(); input.focus();
+    };
+    const chatBtn = act("LLM과 대화하며 다듬기", "", async () => {
+      if (!CATALOG.ollama) throw new Error("Ollama에 연결하지 못했습니다. Ollama를 켜고 창을 다시 여세요.");
+      openChat();
+    });
     const reviseBtn = act("부분 수정", "", async () => {
       if (!result.value.trim()) throw new Error("수정할 프롬프트가 없습니다.");
       if (!reviseBox.value.trim()) throw new Error("고칠 부분을 적으세요.");
@@ -413,18 +505,7 @@ export const DirectorPlusPromptStudio = {
       if (!data.previous) throw new Error("이전 프롬프트가 없습니다.");
       [data.prompt, data.previous] = [data.previous, result.value]; result.value = data.prompt; save(); say("이전 프롬프트로 바꿨습니다. 다시 누르면 되돌아갑니다.");
     });
-    const applyBtn = act("적용", "apply", async () => {
-      const text = result.value.trim();
-      if (!text) throw new Error("적용할 프롬프트가 없습니다.");
-      if (long) {
-        if (!node.__directorLong?.setScenePrompt) throw new Error("장면 타임라인을 찾지 못했습니다.");
-        await node.__directorLong.setScenePrompt(sceneIndex(), text);
-        say(`장면 ${sceneIndex() + 1} 카드에 넣었습니다 (외부 프롬프트 OFF).`);
-      } else {
-        target.applyPrompt(text);
-        say(target.hasExternalPrompt() ? "Director 프롬프트에 넣었습니다. 단, 외부 프롬프트가 연결돼 있어 생성에는 외부 프롬프트가 쓰입니다." : "Director 프롬프트에 넣었습니다.", target.hasExternalPrompt());
-      }
-    });
+    const applyBtn = act("적용", "apply", applyNow);
 
     panel.append(
       h("h3", {}, [h("span", { text: "프롬프트" }), h("span", { class: "grow" }), briefBtn]),

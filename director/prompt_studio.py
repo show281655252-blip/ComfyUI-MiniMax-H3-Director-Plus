@@ -154,6 +154,141 @@ def revise(body):
     return {"prompt": values[0], "report": values[1], "previous": values[2] if len(values) > 2 else "", "applied": applied}
 
 
+# ---------------------------------------------------------------- conversational editing
+# Follows MMH3 Studio's studio_chat (MIT, Bokuwako): each turn sends the rules, a checklist of
+# pitfalls, the production setup, the current prompt in full and the recent conversation. The model
+# answers with a short Korean explanation and, when it changes something, the WHOLE prompt between
+# markers. Nothing is applied here; the window puts it into the result box on the user's click.
+PROMPT_OPEN, PROMPT_CLOSE = "<<<PROMPT", "PROMPT>>>"
+
+CHAT_RULES = f"""You are the prompt editor for MiniMax H3 video prompts, working with the user in a conversation.
+Answer in Korean. Be brief: at most six short lines of explanation.
+When the user reports a problem, first say in one or two lines what in the prompt causes it.
+When you change the prompt, output the WHOLE prompt again, every section, between a line containing only {PROMPT_OPEN} and a line containing only {PROMPT_CLOSE}.
+Keep everything the user did not ask to change exactly as it is, word for word. Keep the section structure and headings.
+Keep reference tags exactly as written (<Picture n>, <Video n>, <Audio n>, <RefMod n>) and never invent new reference numbers.
+If the user only asks a question, answer it and do not output a prompt block.
+After the prompt block, list what you changed as short bullet points."""
+
+CHAT_CHECKLIST = """Known MiniMax H3 pitfalls. Check the prompt against every one of them.
+1. A state written in the present tense is drawn immediately and for the whole clip.
+   "She sits in the left chair" makes a seated ghost appear even while she is standing.
+   Give only positions and ownership in shared blocks; put postures and changes into the shot text with a timestamp.
+2. When the clip continues a previous scene, its opening frames are the previous scene's last frames (length in the setup below).
+   [Shot 1] must continue that final state; new events and cuts go after that carried span.
+3. POV is first-person through the named observer's eyes, at the eye height of their actual posture. Gaze is separate.
+   Do not turn a camera-only change into a change of physical pose or gaze.
+4. Left and right belong to the shot they are written in. When the camera side changes, say who is on whose side.
+5. Dialogue must fit the time: Japanese runs about 6-7 morae per second. Give each line a start time and say that nobody speaks afterwards, or the model fills the gap with talk.
+6. If two things move, give them different axes or rhythms, or they read as one motion.
+7. Keep every cut time in one place: the [Shot N] header. Never write a second time.
+8. When something must be absent, state the empty state plainly in the shot where it matters.
+9. A reference governs only the attributes of its role (face, outfit, whole character, camera, motion). Say they follow the reference
+   and describe only the changes the user asked for. Do not guess what the reference shows.
+10. overall_soundscape holds ambience and physical sounds only. Every voice (lines, humming, whispers, laughter, breathing)
+    goes on the shot timeline at its time; a voice written in the soundscape fills the gaps between lines.
+11. A repeated or ongoing action must be written as continuing until the end of the clip, or the model stops it or returns to the starting pose."""
+
+
+def chat_settings(source):
+    source = source if isinstance(source, dict) else {}
+    model = str(source.get("model") or "").strip()
+    if not model:
+        raise ValueError("대화 모델을 고르세요.")
+
+    def number(key, default, low, high, integer=False):
+        try:
+            value = float(source.get(key, default))
+        except (TypeError, ValueError):
+            raise ValueError(f"대화 설정 {key} 값이 잘못되었습니다.")
+        if not low <= value <= high:
+            raise ValueError(f"대화 설정 {key} 값이 허용 범위를 벗어났습니다.")
+        return int(value) if integer else value
+
+    return {"model": model, "think": bool(source.get("think", False)),
+            "history_turns": number("history_turns", 6, 0, 30, True),
+            "options": {"temperature": number("temperature", 0.3, 0, 2),
+                        "num_ctx": number("num_ctx", 16384, 2048, 131072, True),
+                        "num_predict": number("num_predict", -1, -1, 32768, True)}}
+
+
+def split_reply(text):
+    """(explanation, prompt or None) from a reply containing the marker block."""
+    import re
+    match = re.search(re.escape(PROMPT_OPEN) + r"\s*\n(.*?)\n\s*" + re.escape(PROMPT_CLOSE), text, re.S)
+    if not match:
+        return text.strip(), None
+    return re.sub(r"\n{3,}", "\n\n", text[:match.start()] + "\n" + text[match.end():]).strip(), match.group(1).strip()
+
+
+def _setup_text(ctx):
+    lines = [f"Engine: Director Plus, generation mode {ctx.get('mode') or 'REF2VA'}. "
+             f"The prompt is for ONE clip of {float(ctx.get('duration') or 5):.1f} seconds (24 fps)."]
+    scene = ctx.get("scene")
+    if scene:
+        frames = int(scene.get("context_frames") or 0)
+        lines.append(f"This is scene {scene['index'] + 1} of {scene['count']} of a long video.")
+        if scene["index"] > 0 and frames:
+            lines.append(f"Its opening {frames} frames ({frames / 24:.2f} s) are the previous scene's last frames: "
+                         "[Shot 1] continues that state; new events, dialogue and cuts start after that span.")
+        if scene.get("previous_prompt"):
+            lines.append("Previous scene prompt (for continuity only, do not copy):\n" + str(scene["previous_prompt"])[:4000])
+    refs = ctx.get("references") or []
+    if refs:
+        lines.append("References on the timeline: " + "; ".join(str(r) for r in refs) + ".")
+    if ctx.get("brief"):
+        lines.append("The user's shot brief (what the prompt was written from):\n" + str(ctx["brief"])[:6000])
+    return "\n".join(lines)
+
+
+def chat(body):
+    message = str(body.get("message") or "").strip()
+    if not message:
+        raise ValueError("메시지를 입력하세요.")
+    llm = chat_settings(body.get("llm"))
+    prompt = str(body.get("prompt") or "").strip()
+    system = "\n\n".join([CHAT_RULES, CHAT_CHECKLIST, _setup_text(body.get("context") or {})])
+    history = []
+    recent = (body.get("history") or [])[-llm["history_turns"] * 2:] if llm["history_turns"] else []
+    for m in recent:
+        if m.get("role") not in ("user", "assistant"):
+            continue
+        content = str(m.get("content") or "")
+        if m["role"] == "assistant":  # the current prompt below is the only copy the model should edit
+            content = split_reply(content)[0] or "(프롬프트를 수정했음)"
+        history.append({"role": m["role"], "content": content})
+    current = (f"Current prompt:\n{PROMPT_OPEN}\n{prompt}\n{PROMPT_CLOSE}" if prompt else "There is no prompt yet.")
+    messages = [{"role": "system", "content": system}] + history + \
+               [{"role": "user", "content": current + "\n\nUser request:\n" + message}]
+    base = str(body.get("ollama_url") or "http://127.0.0.1:11434").rstrip("/")
+    payload = {"model": llm["model"], "messages": messages, "stream": False, "think": llm["think"],
+               "keep_alive": "10m", "options": llm["options"]}
+    started = time.time()
+    req = urlrequest.Request(base + "/api/chat", data=json.dumps(payload).encode("utf-8"), headers={"Content-Type": "application/json"})
+    try:
+        with urlrequest.urlopen(req, timeout=900) as response:
+            data = json.load(response)
+    except Exception as exc:
+        raise RuntimeError(f"Ollama 연결 실패: {exc}")
+    if data.get("error"):
+        raise RuntimeError("Ollama: " + str(data["error"]))
+    reply = ((data.get("message") or {}).get("content") or "").strip()
+    explanation, new_prompt = split_reply(reply)
+    return {"reply": reply, "explanation": explanation, "prompt": new_prompt, "seconds": round(time.time() - started, 1)}
+
+
+def chat_unload(body):
+    base = str(body.get("ollama_url") or "http://127.0.0.1:11434").rstrip("/")
+    model = str(body.get("model") or "")
+    if model:
+        req = urlrequest.Request(base + "/api/generate", data=json.dumps({"model": model, "keep_alive": 0}).encode("utf-8"), headers={"Content-Type": "application/json"})
+        try:
+            urlrequest.urlopen(req, timeout=10).read()
+        except Exception:
+            pass
+    return {}
+
+
 def register_routes(server):
     from aiohttp import web
 
@@ -190,3 +325,14 @@ def register_routes(server):
     @server.routes.post("/director_plus/prompt_studio/revise")
     async def revise_route(request):
         return await run(request, revise, True)
+
+    @server.routes.post("/director_plus/prompt_studio/chat")
+    async def chat_route(request):
+        return await run(request, chat, True)
+
+    @server.routes.post("/director_plus/prompt_studio/chat_unload")
+    async def chat_unload_route(request):
+        try:
+            return web.json_response({"ok": True, **(await asyncio.to_thread(chat_unload, await request.json()))})
+        except Exception as exc:
+            return web.json_response({"ok": False, "error": str(exc)}, status=500)

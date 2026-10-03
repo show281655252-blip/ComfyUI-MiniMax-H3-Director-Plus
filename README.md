@@ -73,7 +73,7 @@ PyTorch/torchaudio를 다른 버전으로 교체하지 말고 ComfyUI 배포본�
 
 Director 노드 프롬프트 도구 모음과 긴 영상 장면 타임라인의 **✍ 프롬프트 작성** 버튼으로 엽니다. [ComfyUI-MinimaxH3-PromptDirector](https://github.com/Bokuwako/ComfyUI-MinimaxH3-PromptDirector)와 Ollama가 필요합니다. Writer·Freeze·Shot Builder 노드를 연결하지 않아도 됩니다.
 
-- 구성은 MMH3 Studio의 디렉터 탭과 같습니다: 장면 설정(스타일·장르·렌즈·심도·조명·대사·환경음·음악·금지/필수 사항), Director 이미지별 레퍼런스 역할, 샷 카드(카메라·샷 전환, 몸 방향·시선, 행위, 대사), Ollama 모델·고급 설정, 브리프 확인, 프롬프트 작성, Prompt Freeze 부분 수정·이전 프롬프트.
+- 구성은 MMH3 Studio의 디렉터 탭과 같습니다: 장면 설정(스타일·장르·렌즈·심도·조명·대사·환경음·음악·금지/필수 사항), Director 이미지별 레퍼런스 역할, 샷 카드(카메라·샷 전환, 몸 방향·시선, 행위, 대사), Ollama 모델·고급 설정, 브리프 확인, 프롬프트 작성, Prompt Freeze 부분 수정·이전 프롬프트. **💬 LLM과 대화하며 다듬기**: 결과 칸의 프롬프트를 두고 Ollama와 대화하면(무엇이 이상한지 적으면 원인 설명 + 고친 프롬프트 제안) 「결과 칸에 넣기」·「바로 적용」으로 반영합니다. 제안은 자동 적용되지 않고, 이전 프롬프트로 되돌릴 수 있으며, 창을 닫으면 Ollama 모델을 내립니다. 구성은 MMH3 Studio의 대화 편집(MIT)을 따릅니다.
 - Director의 모드·길이·레퍼런스를 그대로 읽습니다. 영상 레퍼런스 분석과 V+A 소리 규칙(위 PromptDirector 연동)도 적용됩니다.
 - 작성은 ComfyUI 대기열 밖에서 실행되며, 시작할 때 ComfyUI 모델을 내리고 끝나면 Ollama 모델도 내립니다. 영상 생성 중에는 작성할 수 없습니다.
 - 결과를 확인한 뒤 **적용**을 누르면 단일 영상은 Director 프롬프트에, 긴 영상은 고른 장면 카드(기본: NEXT, 외부 프롬프트 OFF)에 들어갑니다.
