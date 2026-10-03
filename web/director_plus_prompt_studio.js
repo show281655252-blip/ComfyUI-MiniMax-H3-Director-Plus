@@ -187,6 +187,8 @@ export const DirectorPlusPromptStudio = {
     loading.remove();
 
     for (const [key, spec] of Object.entries(CATALOG.settings)) if (data.settings[key] === undefined) data.settings[key] = spec.default;
+    // Saved with the pack's old 1200, which cut video-analysed prompts before the sound sections.
+    if (Number(data.writer.max_tokens) === 1200 && CATALOG.writer.max_tokens) data.writer.max_tokens = CATALOG.writer.max_tokens.default;
     for (const [key, spec] of Object.entries(CATALOG.writer)) if (data.writer[key] === undefined) data.writer[key] = spec.default;
     if (!data.writer.model || (CATALOG.writer.model?.options && !CATALOG.writer.model.options.includes(data.writer.model))) data.writer.model = CATALOG.writer.model?.options?.[0] || "";
 
@@ -366,7 +368,7 @@ export const DirectorPlusPromptStudio = {
       else { input = h("input", { type: "number", step: spec.kind === "float" ? "0.05" : "1", min: spec.min ?? "", max: spec.max ?? "" }); input.value = data.writer[key]; input.onchange = () => { data.writer[key] = Number(input.value); save(); }; }
       adv.append(h("label", { class: "dp-ps-field", title: spec.tooltip || "" }, [h("span", { text: label }), input]));
     };
-    advField("vision_model", "비전 모델"); advField("temperature", "temperature"); advField("num_ctx", "num_ctx");
+    advField("vision_model", "비전 모델"); advField("temperature", "temperature"); advField("num_ctx", "num_ctx"); advField("max_tokens", "최대 응답 토큰");
     advField("max_words", "최대 단어 수"); advField("llm_seed", "seed (0 = 매번 새로)"); advField("vision_pass", "이미지 판독 (vision pass)");
 
     const result = h("textarea", { class: "result", placeholder: "완성된 프롬프트를 붙여 넣거나 「프롬프트 작성」으로 만드세요." });
@@ -405,7 +407,9 @@ export const DirectorPlusPromptStudio = {
       lock(false);
       if (data.prompt && data.prompt !== r.prompt) data.previous = data.prompt;
       data.prompt = r.prompt; data.brief = r.brief; data.briefReport = r.brief_report; data.report = r.report; save();
-      result.value = data.prompt; showReport(); say(`작성 완료 (${r.seconds}초). 확인한 뒤 「적용」을 누르세요.`);
+      result.value = data.prompt; showReport();
+      if (r.truncated) { reportDetails.open = true; say(`작성 완료 (${r.seconds}초) — 단, 응답이 최대 응답 토큰(${r.max_tokens})에서 잘린 것 같습니다. 끝부분과 빈 칸이 N/A로 채워졌을 수 있으니 「LLM 고급 설정」에서 최대 응답 토큰을 올리고 다시 작성하세요.`, true); }
+      else say(`작성 완료 (${r.seconds}초). 확인한 뒤 「적용」을 누르세요.`);
     });
     const applyNow = async () => {
       const text = result.value.trim();

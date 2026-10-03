@@ -28,6 +28,7 @@ SETTING_KEYS = ("style", "theme", "lens", "depth_of_field", "lighting_key", "dia
 WRITER_KEYS = ("model", "vision_model", "temperature", "llm_seed", "num_ctx", "max_tokens",
                "max_words", "vision_pass", "image_max_side", "max_ref_images", "auto_fix",
                "force_english", "ollama_url")
+MAX_TOKENS_DEFAULT = 4096
 _busy = asyncio.Lock()
 
 
@@ -87,6 +88,8 @@ def catalog():
     writer_schema = _schema(writer, WRITER_KEYS)
     if "num_ctx" in writer_schema:  # video analysis + several pictures overflow the pack's 8192
         writer_schema["num_ctx"]["default"] = max(16384, int(writer_schema["num_ctx"].get("default") or 0))
+    if "max_tokens" in writer_schema:  # the pack's 1200 cuts a video-analysed prompt mid-description
+        writer_schema["max_tokens"]["default"] = max(MAX_TOKENS_DEFAULT, int(writer_schema["max_tokens"].get("default") or 0))
     base = str(writer_schema.get("ollama_url", {}).get("default") or "http://127.0.0.1:11434")
     live = _ollama_models(base)
     if live and "model" in writer_schema:
@@ -141,7 +144,11 @@ def write(body):
         result = result.get("result", result)
     names = getattr(cls, "RETURN_NAMES", ("prompt", "mode", "report", "duration", "raw"))
     out = dict(zip(names, result))
-    return {"prompt": out.get("prompt", ""), "report": out.get("report", ""), "mode": out.get("mode", ""),
+    report = str(out.get("report", ""))
+    # When the reply runs out of max_tokens the last sections never get written and the pack's
+    # auto-fix fills them with N/A, which looks like the sound checkboxes were off.
+    out["truncated"] = "was empty — set to N/A" in report
+    return {"truncated": out["truncated"], "max_tokens": kw.get("max_tokens"),"prompt": out.get("prompt", ""), "report": out.get("report", ""), "mode": out.get("mode", ""),
             "brief": built["brief"], "brief_report": built.get("report", ""), "seconds": round(time.time() - started, 1)}
 
 
