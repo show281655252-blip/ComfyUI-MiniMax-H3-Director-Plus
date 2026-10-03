@@ -565,13 +565,19 @@ export function renderLongVideo(node, state, emit) {
   s.groups = s.groups.filter(g => g && clipIndex(g.from) >= 0 && clipIndex(g.to) > clipIndex(g.from));
   let approvedEnd = -1;
   while (approvedEnd + 1 < s.clips.length && s.clips[approvedEnd + 1].validated) approvedEnd += 1;
+  // A sealed range ("여기서 고정") keeps its own card; the auto fold only gathers approvals after it.
+  const sealedAt = s.fold_after ? clipIndex(s.fold_after) : -1;
+  if (s.fold_after && sealedAt < 0) delete s.fold_after;
+  const auto = s.fold_validated !== false && approvedEnd - (sealedAt + 1) >= 1 ? { kind: "auto", a: sealedAt + 1, b: approvedEnd } : null;
   const groups = [];
-  if (s.fold_validated !== false && approvedEnd >= 1) groups.push({ kind: "auto", a: 0, b: approvedEnd });
-  let groupFloor = groups.length ? approvedEnd + 1 : 0;
+  let groupFloor = 0;
   for (const g of [...s.groups].sort((x, y) => clipIndex(x.from) - clipIndex(y.from))) {
-    const a = Math.max(clipIndex(g.from), groupFloor), b = clipIndex(g.to);
+    let a = Math.max(clipIndex(g.from), groupFloor), b = clipIndex(g.to);
+    if (auto && !(b < auto.a || a > auto.b)) { if (a < auto.a) b = auto.a - 1; else a = auto.b + 1; } // the auto fold wins an overlap
     if (b - a >= 1) { groups.push({ kind: "manual", a, b, g }); groupFloor = b + 1; }
   }
+  if (auto) groups.push(auto);
+  groups.sort((x, y) => x.a - y.a);
   if (s.clips.length >= 3) {
     const bar = element("div", null, timeline); bar.className = "dl-scenebar";
     element("span", "장면", bar).className = "dl-label";
@@ -819,7 +825,7 @@ export function renderLongVideo(node, state, emit) {
     const head = element("div", null, box); head.className = "dl-card-head";
     element("strong", `장면 ${g.a + 1}–${g.b + 1}`, head).className = "dl-card-title";
     element("span", null, head).className = "dl-spacer";
-    element("span", g.kind === "auto" ? "승인된 장면" : "묶음", head).className = "dl-status";
+    element("span", g.kind === "auto" ? "승인된 장면" : g.g.sealed ? "고정 묶음" : "묶음", head).className = "dl-status";
     const seconds = Math.round(clips.reduce((t, c) => t + Number(c.duration || 0), 0) * 1000) / 1000;
     const approvedN = clips.filter(c => c.validated).length;
     const cachedN = clips.filter(c => rt.cached.includes(c.id)).length;
@@ -848,8 +854,29 @@ export function renderLongVideo(node, state, emit) {
     const open = button(foot, "펼치기", async () => { setOpen(g, true); rt.scrollTo = g.a; rt.scrollToBar = true; });
     open.className = "dl-small";
     if (g.kind === "manual") {
-      const ungroup = button(foot, "묶음 풀기", async () => { s.groups = s.groups.filter(x => x !== g.g); setOpen(g, false); rt.scrollTo = g.a; });
+      const ungroup = button(foot, "묶음 풀기", async () => {
+        s.groups = s.groups.filter(x => x !== g.g); setOpen(g, false); rt.scrollTo = g.a;
+        if (g.g.sealed && s.fold_after === g.g.to) {
+          // Hand the seal back to the previous sealed range, if any, so later approvals fold after it.
+          const previous = s.groups.filter(x => x.sealed).sort((x, y) => clipIndex(y.to) - clipIndex(x.to))[0];
+          if (previous) s.fold_after = previous.to; else delete s.fold_after;
+        }
+      });
       ungroup.className = "dl-small";
+    } else {
+      // Freeze the approved fold at its current end: it becomes a fixed card, and the next
+      // approvals gather into a new fold that starts after it.
+      const seal = element("button", "여기서 고정", foot); seal.type = "button"; seal.className = "dl-small";
+      seal.title = "지금 승인된 장면 묶음을 고정합니다. 다음에 승인하는 장면은 이 묶음에 합쳐지지 않고 새 묶음으로 모입니다.";
+      seal.disabled = rt.busy || rt.running;
+      seal.onclick = e => {
+        e.stopPropagation();
+        (s.groups ||= []).push({ id: crypto.randomUUID(), from: s.clips[g.a].id, to: s.clips[g.b].id, sealed: true });
+        s.fold_after = s.clips[g.b].id;
+        setOpen(g, false);
+        rt.message = `장면 ${g.a + 1}–${g.b + 1}을 고정했습니다. 다음에 승인하는 장면은 장면 ${g.b + 2}부터 새 묶음으로 모입니다.`;
+        save(); refresh();
+      };
     }
     element("span", null, foot).className = "dl-spacer";
     element("span", `${seconds}초`, foot).className = "dl-muted";
