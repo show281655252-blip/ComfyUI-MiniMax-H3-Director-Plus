@@ -827,10 +827,10 @@ export function renderLongVideo(node, state, emit) {
       toggle.title = (masterValue === false ? `지금은 Settings의 ${masterName}이 꺼져 있어 바꿀 수 없고 실행되지 않습니다(Settings를 켜면 바꿀 수 있음). ` : "")
         + `Settings의 「${masterName}」이 켜져 있을 때만 적용됩니다. ${help} 바꾸면 이 장면부터 다시 생성합니다.`;
     };
-    sceneSwitch("derope", "🌀 모션랩 (빠른 동작 보정)", "derope_enabled", "🌀 Motion Lab (de-rope)",
-      "ON: 이 장면의 빠른 동작 구간을 늘려 다시 생성해 뭉개짐을 줄입니다(시간 약 3배). OFF: 이 장면은 그대로 생성합니다.");
     sceneSwitch("audio_regen", "🔊 오디오 재생성", "audio_regen_enabled", "🔊 오디오 재생성",
       "ON: 이 장면의 소리를 30스텝으로 다시 만들어 잡음을 줄입니다(장면당 약 1~2분). OFF: 1차 생성 소리를 그대로 씁니다.");
+    sceneSwitch("derope", "🌀 모션랩 (빠른 동작 보정)", "derope_enabled", "🌀 Motion Lab (de-rope)",
+      "ON: 이 장면의 빠른 동작 구간을 늘려 다시 생성해 뭉개짐을 줄입니다(시간 약 3배). OFF: 이 장면은 그대로 생성합니다.");
 
     const foot = element("div", null, card); foot.className = "dl-card-row";
     const openGroup = groups.find(g => i >= g.a && i <= g.b && isOpen(g));
