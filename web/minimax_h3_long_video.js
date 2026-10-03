@@ -17,9 +17,11 @@ function element(tag, text, parent) {
 
 // New scenes use the external prompt only when one is actually linked to the node;
 // otherwise they start with it OFF and keep their own (or the synced main) prompt.
+// Motion Lab and audio regen start OFF on new scenes and are switched on per card; older scenes
+// without the fields still count as ON.
 function newClip(useExternal = true) {
 
-  return { id: crypto.randomUUID(), name: "", prompt: "", use_external_prompt: useExternal, duration: 5, seed: Math.floor(Math.random() * 1e12), seed_mode: "fixed", validated: false, loras: [] };
+  return { id: crypto.randomUUID(), name: "", prompt: "", use_external_prompt: useExternal, duration: 5, seed: Math.floor(Math.random() * 1e12), seed_mode: "fixed", validated: false, loras: [], derope: false, audio_regen: false };
 
 }
 
@@ -816,13 +818,13 @@ export function renderLongVideo(node, state, emit) {
       element("span", null, row).className = "dl-spacer";
       if (masterValue === false) element("span", "Settings에서 꺼짐", row).className = "dl-muted dl-master-note";
       const toggle = button(row, on ? "ON" : "OFF", async () => {
-        if (c.validated) return;
+        if (c.validated || settingValue(master) === false) return;
         await invalidate(i);
         c[key] = !on;
       });
       toggle.className = "dl-toggle"; toggle.setAttribute("aria-pressed", String(on));
-      toggle.disabled ||= c.validated;
-      toggle.title = (masterValue === false ? `지금은 Settings의 ${masterName}이 꺼져 있어 이 값과 관계없이 실행되지 않습니다. ` : "")
+      toggle.disabled ||= c.validated || masterValue === false;
+      toggle.title = (masterValue === false ? `지금은 Settings의 ${masterName}이 꺼져 있어 바꿀 수 없고 실행되지 않습니다(Settings를 켜면 바꿀 수 있음). ` : "")
         + `Settings의 「${masterName}」이 켜져 있을 때만 적용됩니다. ${help} 바꾸면 이 장면부터 다시 생성합니다.`;
     };
     sceneSwitch("derope", "🌀 모션랩 (빠른 동작 보정)", "derope_enabled", "🌀 Motion Lab (de-rope)",
