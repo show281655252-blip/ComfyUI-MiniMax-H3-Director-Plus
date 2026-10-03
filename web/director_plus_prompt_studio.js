@@ -30,7 +30,7 @@ function installStyle() {
   if (document.getElementById("dp-ps-style")) return;
   const style = document.createElement("style"); style.id = "dp-ps-style";
   style.textContent = `
-  .dp-ps-back{position:fixed;inset:0;z-index:10000;background:rgba(5,8,10,.72);display:flex;align-items:stretch;justify-content:center;padding:2.5vh 2.5vw}
+  .dp-ps-back{position:fixed;inset:0;z-index:10000;background:#070b0d;display:flex;align-items:stretch;justify-content:center;padding:2.5vh 2.5vw;isolation:isolate;transform:translateZ(0)}
   .dp-ps{flex:1;max-width:1700px;background:#0f1416;border:1px solid #2b373d;border-radius:12px;display:flex;flex-direction:column;color:#d8e2e6;font:13px/1.45 system-ui,"Malgun Gothic",sans-serif;overflow:hidden}
   .dp-ps-top{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid #243035}
   .dp-ps-top h2{margin:0;font-size:17px;font-weight:700}
@@ -163,7 +163,12 @@ export const DirectorPlusPromptStudio = {
     const box = h("div", { class: "dp-ps" });
     back.append(box); document.body.append(back);
     let chatUsed = false;
+    // The ComfyUI canvas keeps redrawing under this window; on some GPUs that tears the window's
+    // raster tiles (a vertical seam that goes away on focus change). Pause it while we are open.
+    const canvas = app.canvas, wasPaused = canvas ? !!canvas.pause_rendering : false;
+    try { if (canvas) canvas.pause_rendering = true; } catch { /* ignore */ }
     const close = () => {
+      try { if (canvas) canvas.pause_rendering = wasPaused; app.graph?.setDirtyCanvas(true, true); } catch { /* ignore */ }
       save(); back.remove(); document.removeEventListener("keydown", onKey, true);
       if (chatUsed) getJSON("/director_plus/prompt_studio/chat_unload", { model: data.chat?.llm?.model, ollama_url: data.writer?.ollama_url || "" }).catch(() => {});  // free the card for video generation
     };
