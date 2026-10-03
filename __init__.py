@@ -5,9 +5,11 @@ from .engine import director_project
 from .director import refmod_library
 from .director import h3_forge  # registers /director_plus/dasiwa/h3/forge routes
 from . import prompt_director_compat  # lets PromptDirector FOLLOW_DIRECTOR see DirectorPlusTimeline
+from .director import prompt_studio  # the Director's PromptDirector writing window
 from server import PromptServer
 
 refmod_library.register_routes(PromptServer.instance)
+prompt_studio.register_routes(PromptServer.instance)
 
 NODE_CLASS_MAPPINGS = {
     "DirectorPlusConditioningMatchLatent": DirectorPlusConditioningMatchLatent,

@@ -482,6 +482,11 @@ function install(node) {
       prefillBtn.onclick = () => generateRefLabelsAndSummary(area);
       helpers.append(prefillBtn);
     }
+    if (window.DirectorPlusPromptStudio && mode() !== "Image Inpaint") {
+      const studioButton = document.createElement("button"); studioButton.className = "dp-h3-studio-btn";
+      studioButton.textContent = "✍ 프롬프트 작성"; studioButton.title = "PromptDirector로 프롬프트를 작성합니다 (장면 설정·샷 구성·부분 수정)";
+      studioButton.onclick = () => window.DirectorPlusPromptStudio.open(node); helpers.append(studioButton);
+    }
     if (window.DirectorPlusH3Forge && mode() !== "Image Inpaint") {
       const forgeButton = document.createElement("button"); forgeButton.className = "dp-h3-forge-btn";
       forgeButton.textContent = "Prompt Forge"; forgeButton.title = "Write a prompt with a local LLM";
@@ -1464,6 +1469,19 @@ function install(node) {
       builderState.prompt_mode = "simple";
       emit(); render();
       // The char counter only recounts on input; nudge it so it shows the new prompt.
+      requestAnimationFrame(() => timeline.querySelectorAll(".dp-h3-prompt-panel").forEach(p => p.dispatchEvent(new Event("input", { bubbles: true }))));
+    },
+  };
+  // Prompt Studio (web/director_plus_prompt_studio.js) reads the Director from here and puts a
+  // finished prompt into the Simple box, the same way a typed edit does.
+  node.__directorPlusPromptTarget = {
+    mode, setStatus, hasExternalPrompt,
+    duration: () => Number(node.widgets?.find(w => w.name === "duration")?.value) || null,
+    pictures: () => activeItems().filter(item => item.type === "image" && !item._audioEcho && !isLockedSlot(item)),
+    applyPrompt: (text) => {
+      builderState.simple_prompt = String(text || "");
+      builderState.prompt_mode = "simple";
+      emit(); render();
       requestAnimationFrame(() => timeline.querySelectorAll(".dp-h3-prompt-panel").forEach(p => p.dispatchEvent(new Event("input", { bubbles: true }))));
     },
   };

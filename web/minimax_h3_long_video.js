@@ -246,6 +246,20 @@ export function renderLongVideo(node, state, emit) {
     if (box?.isConnected && document.activeElement !== box) box.value = value;
   };
 
+  // Prompt Studio writes a scene's prompt straight into its card: the card then keeps its own prompt
+  // (external prompt OFF) and a generated scene is invalidated like a typed edit.
+  rt.setScenePrompt = async (index, text) => {
+    const long = rt.state?.long_video;
+    const clip = long?.clips?.[index];
+    if (!clip) throw new Error("장면을 찾을 수 없습니다.");
+    if (clip.validated) throw new Error(`장면 ${index + 1}은 승인돼 있어 바꿀 수 없습니다. 먼저 승인을 해제하세요.`);
+    if (long.cache_owner && (rt.cached || []).includes(clip.id)) await invalidate(index);
+    clip.prompt = String(text || "");
+    clip.use_external_prompt = false;
+    rt.selected = index; rt.scrollTo = index;
+    save(); refresh();
+  };
+
   // Tick/untick approval without touching the cache (Extender "Validated" behaviour).
   const setValidated = async (index, validated) => {
     if (!s.cache_owner) throw new Error("먼저 이 장면을 생성하세요.");
@@ -451,6 +465,12 @@ export function renderLongVideo(node, state, emit) {
 
   element("span", null, title).className = "dl-spacer";
   button(title, "+ 장면 추가", () => { s.clips.push(newClip(hasExternal())); rt.selected = s.clips.length - 1; });
+  if (window.DirectorPlusPromptStudio) {
+    const studio = element("button", "✍ 프롬프트 작성", title);
+    studio.title = "선택한 장면의 프롬프트를 PromptDirector로 작성합니다";
+    studio.disabled = rt.busy || rt.running;
+    studio.onclick = () => window.DirectorPlusPromptStudio.open(node, { scene: rt.selected });
+  }
 
   // A reopened workflow only knows its last preview; check the disk cache once so scene
   // status and approvals match what can really be reused (runs and .ext loads already sync).

@@ -11,6 +11,7 @@ Applied by prompt_director_compat; nothing in the PromptDirector folder is modif
 """
 import base64
 import contextvars
+import functools
 import importlib
 import io
 import logging
@@ -184,6 +185,7 @@ def wrap_read_director(link):
         return False
     client = importlib.import_module(link.__name__.rsplit(".", 1)[0] + ".ollama_client")
 
+    @functools.wraps(original)
     def read_director(prompt_graph, node_id_hint="", *args, **kwargs):
         out = original(prompt_graph, node_id_hint, *args, **kwargs)
         writer = _writer_args.get()
@@ -239,6 +241,7 @@ def wrap_writer(writer_class):
     if getattr(original, "_director_plus_video", False):
         return False
 
+    @functools.wraps(original)  # keeps the signature callers inspect (Prompt Studio)
     def run(self, *args, **kwargs):
         token = set_writer_args(kwargs)
         try:
