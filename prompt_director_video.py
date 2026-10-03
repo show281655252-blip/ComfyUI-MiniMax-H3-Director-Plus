@@ -18,7 +18,8 @@ import os
 import re
 import time
 
-STEP_SECONDS = 0.5
+STEP_SECONDS = 0.5      # clips longer than MAX_FRAMES * FINE_STEP
+FINE_STEP = 0.25        # short clips: back-and-forth actions (sweeping, waving) alias at 0.5 s
 MAX_FRAMES = 30          # 15 s, H3's reference-video limit
 FRAME_MAX_SIDE = 448
 _writer_args = contextvars.ContextVar("director_plus_writer_args", default=None)
@@ -37,8 +38,10 @@ QUESTION = """Frames sampled every {step} s from one reference video, in order: 
 Write a precise motion analysis in plain English with these parts:
 CAMERA: fixed or moving; angle, height, distance; framing (which part of the body is visible); any zoom, pan, tilt or hard cut, with times.
 START ({first}): pose, position of both arms and hands, head angle, gaze, eyes, mouth, expression.
-TIMELINE: one line per span, "From X s to Y s: ...". Write "hold" spans explicitly. For every change name the hand as the performer's own left/right AND its screen side, give the exact hand and finger shape (count the extended fingers), where the hand is relative to the face and body, head tilt, gaze, eyes (blinks), mouth shape and expression, and any visual effect (when it appears, its size, position, movement and when it leaves).
-END ({last}): final pose, hands, gaze and expression.
+TIMELINE: one line per phase of action, "From X s to Y s: ...". A phase is a run of frames showing one movement; merge consecutive frames into one phase instead of writing a line for every frame, and never repeat the same sentence for several phases. Compare each frame with the next one before writing. For every change name the hand as the performer's own left/right AND its screen side, give the exact hand and finger shape (count the extended fingers), where the hand is relative to the face and body, torso lean and weight shift, head tilt, gaze, eyes (blinks), mouth shape and expression, and any visual effect (when it appears, its size, position, movement and when it leaves).
+HELD OBJECTS: if the performer holds or uses an object (broom, sword, cup, phone ...), note in every frame where its working end is (screen left / centre / right, near / far) and describe how it moves between frames (e.g. "the broom head sweeps from screen right to screen left").
+CONTINUOUS ACTIONS: write repeated or continuous actions (sweeping, walking, waving, rocking, dancing) as that action with its rhythm (e.g. "sweeps left and right about once per second"); never break them into grip/release steps. Write "hold" only when neither the body nor the object moves between the two frames.
+END ({last}): describe the last frame on its own (pose, lean, hands, object position, gaze, expression), then say how it differs from START. If the action is still going on in the last frames, say it continues to the last frame without slowing down, settling or returning to the start pose.
 BACKGROUND / PROPS / LIGHTING: one short line, and note any change.
 Be terse and exact. No markdown headings other than the part names."""
 
@@ -51,11 +54,19 @@ def reset_writer_args(token):
     _writer_args.reset(token)
 
 
-def _sample_frames(path, start, end):
+def _step_for(path, start, end):
+    if end is None:
+        import av
+        with av.open(path) as container:
+            end = float(container.duration or 0) / 1_000_000
+    return FINE_STEP if (end - start) <= MAX_FRAMES * FINE_STEP + 1e-6 else STEP_SECONDS
+
+
+def _sample_frames(path, start, end, step):
     import av
     from PIL import Image
 
-    targets = [start + i * STEP_SECONDS for i in range(MAX_FRAMES)]
+    targets = [start + i * step for i in range(MAX_FRAMES)]
     targets = [t for t in targets if end is None or t <= end + 1e-6]
     picked = []
     with av.open(path) as container:
@@ -91,22 +102,23 @@ def _analyse(client, args, path, start, end):
     stat = os.stat(path)
     key = (path, stat.st_mtime, stat.st_size, start, end, model)
     if key in _cache:
-        return _cache[key], True
-    times, images = _sample_frames(path, start, end)
+        return (*_cache[key], True)
+    step = _step_for(path, start, end)
+    times, images = _sample_frames(path, start, end, step)
     if not images:
         raise ValueError("no frames could be read")
-    labels = ", ".join(f"image {i + 1} = {t:.1f} s" for i, t in enumerate(times))
+    labels = ", ".join(f"image {i + 1} = {t:.2f} s" for i, t in enumerate(times))
     text = client.chat(
         base_url=args.get("ollama_url") or "http://127.0.0.1:11434", model=model, system=SYSTEM,
-        user=QUESTION.format(step=STEP_SECONDS, labels=labels, first=f"{times[0]:.1f} s", last=f"{times[-1]:.1f} s"),
-        images=images, options={"temperature": 0.1, "top_p": 0.8, "num_predict": 1400,
+        user=QUESTION.format(step=step, labels=labels, first=f"{times[0]:.2f} s", last=f"{times[-1]:.2f} s"),
+        images=images, options={"temperature": 0.1, "top_p": 0.8, "num_predict": 1800,
                                 "num_ctx": max(8192, int(args.get("num_ctx") or 8192))},
         keep_alive="0" if split else (args.get("keep_alive") or "5m"))
     text = re.sub(r"(?s)<think>.*?</think>", "", str(text or "")).strip()
     if not text:
         raise ValueError("the model returned nothing")
-    _cache[key] = text
-    return text, False
+    _cache[key] = (text, step)
+    return text, step, False
 
 
 def _video_items(link, prompt_graph, node_id_hint):
@@ -178,14 +190,14 @@ def wrap_read_director(link):
             end = None if end is None else float(end)
             began = time.time()
             try:
-                text, cached = _analyse(client, writer, path, start, end)
+                text, step, cached = _analyse(client, writer, path, start, end)
             except Exception as exc:  # the writer must still run without it
                 out["notes"].append(f"Director Plus video analysis: <Video {number}> failed ({exc}); "
                                     "the writer gets the label only.")
                 continue
             name = os.path.basename(str(item.get("value") or ""))
             labels[index] = (f"<Video {number}>: {name} (video; not watched by the writer, but analysed "
-                             f"from frames sampled every {STEP_SECONDS} s by a vision model)\n"
+                             f"from frames sampled every {step} s by a vision model)\n"
                              f"ROLE OF <Video {number}>: it decides camera, framing, background, lighting, props, "
                              f"staging, pose, body and hand motion, gaze, expression timing and pacing. The pictures "
                              f"decide only who the character is and what she or he wears; ignore the pictures' own "
