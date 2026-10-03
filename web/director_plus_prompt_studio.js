@@ -232,8 +232,39 @@ export const DirectorPlusPromptStudio = {
     // ---------------- scene settings
     const settingsCard = h("div", { class: "dp-ps-card" }, [h("h3", { text: "장면 설정" })]);
     const grid = h("div", { class: "dp-ps-grid" }); settingsCard.append(grid);
+    // A sound reference (V+A video or audio on the timeline) already decides the sound; the two
+    // checkboxes would only add the style preset's own ambience/score. Turn them off when such a
+    // reference appears (and back on when it goes away, if we were the ones who turned them off).
+    // The user can still tick them again; that sticks until the sound references change.
+    const soundSig = (() => {
+      try {
+        const items = JSON.parse(node.widgets?.find(w => w.name === "timeline_data")?.value || "{}").items || [];
+        return items.filter(it => it.enabled !== false && (it.type === "audio" || (it.type === "video" && it.media_mode === "video_audio"))).map(it => it.value).sort().join("|");
+      } catch { return ""; }
+    })();
+    let soundNote = "";
+    if (soundSig && soundSig !== data.soundRefSig) {
+      data.settings.include_soundscape = false; data.settings.include_music = false; data.soundAutoOff = true;
+      soundNote = "레퍼런스에 소리가 있어 환경음·음악을 껐습니다 (소리는 레퍼런스를 그대로 따릅니다).";
+    } else if (!soundSig && data.soundRefSig && data.soundAutoOff) {
+      data.settings.include_soundscape = true; data.settings.include_music = true; data.soundAutoOff = false;
+      soundNote = "소리 레퍼런스가 없어져 환경음·음악을 다시 켰습니다.";
+    }
+    data.soundRefSig = soundSig;
+    let soundCell = null;
     for (const [key, label, extra] of SETTING_FIELDS) {
       const spec = CATALOG.settings[key]; if (!spec) continue;
+      if (spec.kind === "boolean" && (key === "include_soundscape" || key === "include_music")) {  // both in one cell, on a row of their own
+        if (!soundCell) {
+          soundCell = h("div", { class: "dp-ps-field", style: "grid-column:1;flex-direction:row;gap:22px;align-items:flex-start;flex-wrap:wrap" });
+          grid.append(soundCell);
+          if (soundNote) grid.append(h("div", { class: "muted", style: "grid-column:2;align-self:center", text: soundNote }));
+        }
+        const box2 = h("input", { type: "checkbox", title: spec.tooltip || "" }); box2.checked = !!data.settings[key];
+        box2.onchange = () => { data.settings[key] = box2.checked; save(); };
+        soundCell.append(h("label", { class: "dp-ps-field", style: "align-items:center;gap:6px;cursor:pointer", title: spec.tooltip || "" }, [h("span", { text: label }), box2]));
+        continue;
+      }
       const field = h("label", { class: "dp-ps-field" + (extra === "wide" ? " wide" : "") }, [h("span", { text: label })]);
       if (spec.kind === "combo") {
         const sel = h("select", { title: spec.tooltip || "" });
