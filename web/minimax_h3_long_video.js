@@ -39,12 +39,16 @@ function reconcileSceneCache(settings, result) {
   const cached = result.found === false ? [] : (result.cached_clip_ids || []);
   const approved = new Set(result.validated_clip_ids || []);
   const reusable = [], missing = [];
-  let prefixValid = true;
+  // A scene's cache is reusable while the cached chain matches scene by scene from the start;
+  // approval is a separate, contiguous prefix of those. (Tying reuse to approval marked every
+  // cached scene after the first unapproved one as "needs regeneration".)
+  let chainIntact = true, approvedPrefix = true;
   settings.clips.forEach((clip, index) => {
-    const exists = prefixValid && cached[index] === clip.id;
+    const exists = chainIntact && cached[index] === clip.id;
     if (exists) reusable.push(clip.id); else missing.push(clip.id);
-    clip.validated = Boolean(exists && clip.validated && approved.has(clip.id));
-    prefixValid = clip.validated;
+    clip.validated = Boolean(exists && approvedPrefix && clip.validated && approved.has(clip.id));
+    chainIntact = exists;
+    approvedPrefix = clip.validated;
   });
   return { cached: reusable, missing };
 }
@@ -515,7 +519,17 @@ export function renderLongVideo(node, state, emit) {
     rt.selected = 0; rt.scrollTo = 0;
     return `장면 ${approved}개의 승인을 해제했습니다. (캐시는 유지)`;
   });
-  bulkButton("구간 묶기", "장면 범위를 카드 한 장으로 묶어 짧게 보여 줍니다. 생성·캐시·승인은 그대로입니다.", async () => {
+  bulkButton("캐시 확인", "디스크에 저장된 장면 캐시를 다시 확인해 승인할 수 있는 장면과 재생성이 필요한 장면을 맞춥니다.", async () => {
+    if (!s.cache_owner) return "아직 이 프로젝트로 생성한 기록이 없어 확인할 캐시가 없습니다.";
+    const result = await request(`/director_plus/extender/cache_state?${new URLSearchParams({ owner_id: s.cache_owner, mode: "ref2va", motion_context: "true" })}`);
+    const checked = reconcileSceneCache(s, result);
+    rt.cacheChecked = true; rt.cacheCheckFailed = false; rt.cached = checked.cached; rt.needsRegeneration = checked.missing;
+    const approvedN = s.clips.filter(c => c.validated).length;
+    if (result.found === false) return "이 프로젝트의 캐시를 찾지 못했습니다. 생성 설정(LBH·오디오 재생성 등)이 바뀌었으면 그 설정의 캐시는 따로 저장됩니다.";
+    return `캐시 확인: 장면 ${s.clips.length}개 중 ${checked.cached.length}개 사용 가능 · 승인 ${approvedN}개` +
+      (checked.missing.length ? ` · 재생성 필요: 장면 ${checked.missing.map(id => s.clips.findIndex(c => c.id === id) + 1).join(", ")}` : "");
+  });
+  bulkButton("구간 묶기","장면 범위를 카드 한 장으로 묶어 짧게 보여 줍니다. 생성·캐시·승인은 그대로입니다.", async () => {
     const n = s.clips.length;
     if (n < 2) return "장면이 2개 이상일 때 묶을 수 있습니다.";
     const text = window.prompt(`묶을 장면 범위를 적으세요. 예: 3-8 (장면 1~${n})`, "");
