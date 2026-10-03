@@ -230,7 +230,8 @@ def split_reply(text):
 
 def _setup_text(ctx):
     lines = [f"Engine: Director Plus, generation mode {ctx.get('mode') or 'REF2VA'}. "
-             f"The prompt is for ONE clip of {float(ctx.get('duration') or 5):.1f} seconds (24 fps)."]
+             f"The prompt is for ONE clip of {float(ctx.get('duration') or 5):.3f} seconds (24 fps); "
+             "the last timestamp is the clip end, never later."]
     scene = ctx.get("scene")
     if scene:
         frames = int(scene.get("context_frames") or 0)
