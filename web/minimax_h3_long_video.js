@@ -76,6 +76,7 @@ function installStyle() {
   .dp-h3 .dl-panel input:disabled,.dp-h3 .dl-panel textarea:disabled{opacity:.65}
   .dp-h3 .dl-panel textarea{width:100%;min-height:100px;resize:vertical}
   .dp-h3 .dl-panel .dl-strip{position:relative}
+  .dp-h3 .dl-panel .dl-card.dl-group{flex:0 0 340px;width:340px;border-style:dashed;border-color:#5b7d93;background:#101c24}.dp-h3 .dl-panel .dl-group-line{font-size:13px;color:#d6e4ee}.dp-h3 .dl-panel .dl-group-list{display:flex;flex-direction:column;gap:4px;max-height:360px;overflow-y:auto}.dp-h3 .dl-panel button.dl-group-row{display:flex;gap:8px;align-items:center;text-align:left;padding:5px 8px!important;font-size:12px!important;background:#172833!important;border:1px solid #2c4252!important}.dp-h3 .dl-panel .dl-group-num{white-space:nowrap;font-weight:600}.dp-h3 .dl-panel .dl-group-text{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#9fb3c2}.dp-h3 .dl-panel button.dl-group-bar{flex:0 0 40px;width:40px;min-height:900px;padding:0!important;writing-mode:vertical-rl;font-size:12px!important;border:1px dashed #5b7d93!important;background:#101c24!important;border-radius:9px!important}.dp-h3 .dl-panel .dl-scenebar{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:2px 0 6px}.dp-h3 .dl-panel button.dl-scene-num{min-width:28px;padding:3px 6px!important;font-size:12px!important;background:#1a2a35!important}.dp-h3 .dl-panel button.dl-scene-num.made{border-color:#c9a64a!important}.dp-h3 .dl-panel button.dl-scene-num.ok{border-color:#5fbf7a!important;color:#bff3d0}.dp-h3 .dl-panel button.dl-scene-num.sel{background:#2f5874!important}
   .dp-h3 .dl-panel .dl-cards{display:flex;gap:12px;overflow-x:auto;overflow-y:hidden;padding:3px 3px 12px;scroll-snap-type:x proximity;scrollbar-gutter:stable}
   .dp-h3 .dl-panel .dl-card{flex:0 0 480px;width:480px;min-height:900px;border:1px solid #466071;border-radius:9px;background:#14222b;padding:9px;display:flex;flex-direction:column;gap:8px;scroll-snap-align:start;cursor:pointer}
   .dp-h3 .dl-panel .dl-card-title{font-size:15px}
@@ -514,15 +515,69 @@ export function renderLongVideo(node, state, emit) {
     rt.selected = 0; rt.scrollTo = 0;
     return `장면 ${approved}개의 승인을 해제했습니다. (캐시는 유지)`;
   });
+  bulkButton("구간 묶기", "장면 범위를 카드 한 장으로 묶어 짧게 보여 줍니다. 생성·캐시·승인은 그대로입니다.", async () => {
+    const n = s.clips.length;
+    if (n < 2) return "장면이 2개 이상일 때 묶을 수 있습니다.";
+    const text = window.prompt(`묶을 장면 범위를 적으세요. 예: 3-8 (장면 1~${n})`, "");
+    if (!text) return "";
+    const m = String(text).match(/^\s*(\d+)\s*[-~–]\s*(\d+)\s*$/);
+    if (!m) throw new Error("범위는 3-8처럼 적어 주세요.");
+    let a = Number(m[1]) - 1, b = Number(m[2]) - 1;
+    if (a > b) [a, b] = [b, a];
+    if (a < 0 || b >= n || b - a < 1) throw new Error(`장면 1~${n} 안에서 2개 이상을 지정하세요.`);
+    const index = id => s.clips.findIndex(c => c.id === id);
+    if ((s.groups || []).some(g => !(index(g.to) < a || index(g.from) > b))) throw new Error("이미 묶인 구간과 겹칩니다. 먼저 그 묶음을 풀어 주세요.");
+    (s.groups ||= []).push({ id: crypto.randomUUID(), from: s.clips[a].id, to: s.clips[b].id });
+    rt.scrollTo = a;
+    return `장면 ${a + 1}–${b + 1}을 카드 한 장으로 묶었습니다.`;
+  });
+  const foldOn = s.fold_validated !== false;
+  const foldButton = bulkButton(`승인 장면 접기 ${foldOn ? "ON" : "OFF"}`, "ON이면 앞에서부터 승인된 장면(2개 이상)을 카드 한 장으로 접습니다.", async () => {
+    s.fold_validated = !foldOn;
+    rt.openGroups?.delete("auto");
+    return "";
+  });
+  foldButton.setAttribute("aria-pressed", String(foldOn));
+  if (foldOn) foldButton.className = "dl-blue";
   title.append(clearButton); // destructive action last, at the far right
 
   const preview = rt.preview || s.last_preview?.video;
   const spans = rt.spans || s.last_preview?.scenes || [];
   rt.selected = Math.max(0, Math.min(rt.selected, s.clips.length - 1));
 
+  // ---- scene groups (resolved before the strip so the number bar can open them)
+  if (!Array.isArray(s.groups)) s.groups = [];
+  const clipIndex = id => s.clips.findIndex(c => c.id === id);
+  s.groups = s.groups.filter(g => g && clipIndex(g.from) >= 0 && clipIndex(g.to) > clipIndex(g.from));
+  let approvedEnd = -1;
+  while (approvedEnd + 1 < s.clips.length && s.clips[approvedEnd + 1].validated) approvedEnd += 1;
+  const groups = [];
+  if (s.fold_validated !== false && approvedEnd >= 1) groups.push({ kind: "auto", a: 0, b: approvedEnd });
+  let groupFloor = groups.length ? approvedEnd + 1 : 0;
+  for (const g of [...s.groups].sort((x, y) => clipIndex(x.from) - clipIndex(y.from))) {
+    const a = Math.max(clipIndex(g.from), groupFloor), b = clipIndex(g.to);
+    if (b - a >= 1) { groups.push({ kind: "manual", a, b, g }); groupFloor = b + 1; }
+  }
+  if (s.clips.length >= 3) {
+    const bar = element("div", null, timeline); bar.className = "dl-scenebar";
+    element("span", "장면", bar).className = "dl-label";
+    s.clips.forEach((c, i) => {
+      const b = element("button", String(i + 1), bar); b.type = "button";
+      b.className = "dl-scene-num" + (c.validated ? " ok" : rt.cached.includes(c.id) ? " made" : "") + (i === rt.selected ? " sel" : "");
+      b.title = `장면 ${i + 1} · ${c.duration}초 · ${c.validated ? "승인" : rt.cached.includes(c.id) ? "생성됨" : "대기"}`;
+      b.onclick = e => {
+        e.stopPropagation();
+        const g = groups.find(x => i >= x.a && i <= x.b);
+        if (g) (rt.openGroups ||= new Set()).add(g.kind === "auto" ? "auto" : g.g.id);
+        rt.selected = i; rt.scrollTo = i; save(); refresh();
+      };
+    });
+  }
+
   // Extender-style strip: fixed-width tall cards side by side, each with its own editor.
   const strip = element("div", null, timeline); strip.className = "dl-strip";
   const cards = element("div", null, strip); cards.className = "dl-cards";
+  const cardOf = []; // clip index -> its card, or the folded group card that holds it
   const CARD_STEP = 492;
   let syncNav = () => {};
   const settle = () => { rt.scrollLeft = cards.scrollLeft; syncNav(); };
@@ -562,7 +617,7 @@ export function renderLongVideo(node, state, emit) {
   setTimeout(() => {
     restored = true;
     if (rt.scrollTo != null) {
-      const target = cards.children[rt.scrollTo];
+      const target = cardOf[rt.scrollTo];
       rt.scrollTo = null;
       if (target) glide(target.offsetLeft - cards.offsetLeft - 4);
     } else if (restoreLeft) cards.scrollLeft = restoreLeft;
@@ -571,13 +626,45 @@ export function renderLongVideo(node, state, emit) {
 
   rt.nextPromptEl = null;
   rt.validateEls = [];
-  s.clips.forEach((c, i) => {
+  const makePreview = (parent, span, available, needsRegeneration) => {
+    if (preview && span && available) {
+      const video = element("video", null, parent); video.className = "dl-preview";
+      video.controls = true; video.preload = "none"; video.playsInline = true;
+      const startTime = Number(span.start);
+      const endTime = Number(span.end);
+      const lastTime = Math.max(startTime, endTime - 1 / 24);
+      video.addEventListener("loadedmetadata", () => { video.currentTime = startTime; });
+      video.addEventListener("play", () => {
+        panel.querySelectorAll("video").forEach(other => { if (other !== video) other.pause(); });
+        if (!video.seeking && (video.currentTime < startTime - 0.02 || video.currentTime >= lastTime)) {
+          video.currentTime = startTime;
+        }
+      });
+      video.addEventListener("timeupdate", () => {
+        if (!video.seeking && !video.paused && video.currentTime >= endTime - 0.02) video.pause();
+      });
+      video.addEventListener("seeked", () => {
+        if (video.currentTime < startTime - 0.02) video.currentTime = startTime;
+        else if (video.currentTime >= endTime) video.currentTime = lastTime;
+      });
+      video.src = viewURL(preview);
+      video.addEventListener("error", () => {
+        video.replaceWith(Object.assign(document.createElement("div"), {className:"dl-preview dl-empty", textContent:"미리보기 파일을 찾을 수 없습니다"}));
+      });
+      for (const name of ["pointerdown", "mousedown", "touchstart"]) video.addEventListener(name, e => e.stopPropagation());
+    } else {
+      const empty = element("div", available ? "▶ 실행 완료 후 미리보기" : needsRegeneration ? "↻ 캐시 없음 · 재생성 필요" : "▶ 생성 대기", parent);
+      empty.className = "dl-preview dl-empty";
+    }
+  };
+  const renderClip = (c, i) => {
     const span = spans.find(x => x.id === c.id);
     const available = rt.cached.includes(c.id) || (!rt.cacheChecked && !!span);
     const needsRegeneration = (rt.needsRegeneration || []).includes(c.id);
     const label = c.validated ? "✓ 승인 완료" : available ? "◷ 검토 중" : needsRegeneration ? "↻ 재생성 필요" : "Ⅱ 대기";
     const locked = c.validated || rt.busy || rt.running;
     const card = element("div", null, cards); card.className = "dl-card" + (i === rt.selected ? " selected" : "");
+    cardOf[i] = card;
     card.addEventListener("click", e => {
       if (rt.busy || rt.running || rt.selected === i) return;
       if (e.target.closest("button, input, select, textarea, a, video, label")) return;
@@ -622,35 +709,7 @@ export function renderLongVideo(node, state, emit) {
       }
     }
 
-    if (preview && span && available) {
-      const video = element("video", null, card); video.className = "dl-preview";
-      video.controls = true; video.preload = "none"; video.playsInline = true;
-      const startTime = Number(span.start);
-      const endTime = Number(span.end);
-      const lastTime = Math.max(startTime, endTime - 1 / 24);
-      video.addEventListener("loadedmetadata", () => { video.currentTime = startTime; });
-      video.addEventListener("play", () => {
-        panel.querySelectorAll("video").forEach(other => { if (other !== video) other.pause(); });
-        if (!video.seeking && (video.currentTime < startTime - 0.02 || video.currentTime >= lastTime)) {
-          video.currentTime = startTime;
-        }
-      });
-      video.addEventListener("timeupdate", () => {
-        if (!video.seeking && !video.paused && video.currentTime >= endTime - 0.02) video.pause();
-      });
-      video.addEventListener("seeked", () => {
-        if (video.currentTime < startTime - 0.02) video.currentTime = startTime;
-        else if (video.currentTime >= endTime) video.currentTime = lastTime;
-      });
-      video.src = viewURL(preview);
-      video.addEventListener("error", () => {
-        video.replaceWith(Object.assign(document.createElement("div"), {className:"dl-preview dl-empty", textContent:"미리보기 파일을 찾을 수 없습니다"}));
-      });
-      for (const name of ["pointerdown", "mousedown", "touchstart"]) video.addEventListener(name, e => e.stopPropagation());
-    } else {
-      const empty = element("div", available ? "▶ 실행 완료 후 미리보기" : needsRegeneration ? "↻ 캐시 없음 · 재생성 필요" : "▶ 생성 대기", card);
-      empty.className = "dl-preview dl-empty";
-    }
+    makePreview(card, span, available, needsRegeneration);
 
     const useExternal = c.use_external_prompt ?? !String(c.prompt || "").trim();
     const promptHead = element("div", null, card); promptHead.className = "dl-card-row";
@@ -713,7 +772,69 @@ export function renderLongVideo(node, state, emit) {
     remove.className = "dl-small"; remove.disabled ||= s.clips.length < 2;
     element("span", null, foot).className = "dl-spacer";
     element("span", `${c.duration}초`, foot).className = "dl-muted";
-  });
+  };
+
+  // Scene groups only change the view: clips, caches, approval and Motion Context stay per scene.
+  // "auto" folds the approved prefix; manual groups are clip-id ranges the user picked.
+  const groupKey = g => g.kind === "auto" ? "auto" : g.g.id;
+  const isOpen = g => (rt.openGroups ||= new Set()).has(groupKey(g));
+  const setOpen = (g, open) => { (rt.openGroups ||= new Set())[open ? "add" : "delete"](groupKey(g)); };
+  const renderGroup = g => {
+    const clips = s.clips.slice(g.a, g.b + 1);
+    const box = element("div", null, cards);
+    box.className = "dl-card dl-group" + (rt.selected >= g.a && rt.selected <= g.b ? " selected" : "");
+    for (let k = g.a; k <= g.b; k += 1) cardOf[k] = box;
+    const head = element("div", null, box); head.className = "dl-card-head";
+    element("strong", `장면 ${g.a + 1}–${g.b + 1}`, head).className = "dl-card-title";
+    element("span", null, head).className = "dl-spacer";
+    element("span", g.kind === "auto" ? "승인된 장면" : "묶음", head).className = "dl-status";
+    const seconds = Math.round(clips.reduce((t, c) => t + Number(c.duration || 0), 0) * 1000) / 1000;
+    const approvedN = clips.filter(c => c.validated).length;
+    const cachedN = clips.filter(c => rt.cached.includes(c.id)).length;
+    element("div", `${clips.length}개 장면 · 설정 길이 ${seconds}초`, box).className = "dl-group-line";
+    element("div", `승인 ${approvedN}/${clips.length} · 생성됨 ${cachedN}/${clips.length}`, box).className = "dl-group-line dl-muted";
+    const last = clips[clips.length - 1];
+    element("div", `마지막 장면 ${g.b + 1} (다음 장면은 여기서 이어집니다)`, box).className = "dl-label";
+    const lastSpan = spans.find(x => x.id === last.id);
+    makePreview(box, lastSpan, rt.cached.includes(last.id) || (!rt.cacheChecked && !!lastSpan), (rt.needsRegeneration || []).includes(last.id));
+    const list = element("div", null, box); list.className = "dl-group-list";
+    clips.forEach((c, k) => {
+      const index = g.a + k;
+      const rowEl = element("button", null, list); rowEl.type = "button"; rowEl.className = "dl-group-row";
+      const mark = c.validated ? "✓" : rt.cached.includes(c.id) ? "◷" : "Ⅱ";
+      element("span", `${mark} 장면 ${index + 1}`, rowEl).className = "dl-group-num";
+      element("span", `${c.duration}초`, rowEl).className = "dl-muted";
+      element("span", String(c.prompt || (c.use_external_prompt ? "(외부 프롬프트)" : "")).replace(/\s+/g, " ").slice(0, 70), rowEl).className = "dl-group-text";
+      rowEl.title = `장면 ${index + 1}을 펼쳐서 봅니다`;
+      rowEl.onclick = e => { e.stopPropagation(); setOpen(g, true); rt.selected = index; rt.scrollTo = index; save(); refresh(); };
+    });
+    const foot = element("div", null, box); foot.className = "dl-card-row";
+    const open = button(foot, "펼치기", async () => { setOpen(g, true); rt.scrollTo = g.a; });
+    open.className = "dl-small";
+    if (g.kind === "manual") {
+      const ungroup = button(foot, "묶음 풀기", async () => { s.groups = s.groups.filter(x => x !== g.g); setOpen(g, false); rt.scrollTo = g.a; });
+      ungroup.className = "dl-small";
+    }
+    element("span", null, foot).className = "dl-spacer";
+    element("span", `${seconds}초`, foot).className = "dl-muted";
+  };
+  const renderGroupBar = g => {
+    const bar = element("button", null, cards); bar.type = "button"; bar.className = "dl-group-bar";
+    element("span", `◀ 장면 ${g.a + 1}–${g.b + 1} 접기`, bar);
+    bar.title = g.kind === "auto" ? "승인된 장면을 다시 접습니다" : "이 묶음을 다시 접습니다";
+    for (const name of ["pointerdown", "mousedown"]) bar.addEventListener(name, e => e.stopPropagation());
+    bar.onclick = e => { e.stopPropagation(); setOpen(g, false); rt.scrollTo = g.a; refresh(); };
+  };
+  const renderCards = () => {
+    for (let i = 0; i < s.clips.length;) {
+      const g = groups.find(x => x.a === i);
+      if (g && !isOpen(g)) { renderGroup(g); i = g.b + 1; continue; }
+      if (g) renderGroupBar(g);
+      renderClip(s.clips[i], i);
+      i += 1;
+    }
+  };
+  renderCards();
 
   const summary = row(timeline);
   button(summary, "▶ 생성 / 실행", async () => { save(); await app.queuePrompt(0, 1); }).className = "dl-blue";
