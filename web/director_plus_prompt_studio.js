@@ -143,7 +143,11 @@ function importFromGraph() {
     for (const r of shots?.refs || []) if (r?.n && r.role) out.roles[r.n] = r.role;
   } catch { /* keep defaults */ }
   const writer = values("MMH3_OllamaPromptWriter");
-  if (writer) for (const key of ["model", "vision_model", "temperature", "llm_seed", "num_ctx", "max_words", "vision_pass"]) if (writer[key] !== undefined) out.writer[key] = writer[key];
+  // Every writer setting the window uses (director/prompt_studio.py WRITER_KEYS), not a subset —
+  // max_tokens / max_ref_images were left at the pack defaults before.
+  if (writer) for (const key of ["model", "vision_model", "temperature", "llm_seed", "num_ctx", "max_tokens", "max_words", "vision_pass",
+    "image_max_side", "max_ref_images", "auto_fix", "force_english", "ollama_url"]) if (writer[key] !== undefined) out.writer[key] = writer[key];
+  if (writer) out.writerImported = true;
   return out;
 }
 
@@ -188,7 +192,8 @@ export const DirectorPlusPromptStudio = {
 
     for (const [key, spec] of Object.entries(CATALOG.settings)) if (data.settings[key] === undefined) data.settings[key] = spec.default;
     // Saved with the pack's old 1200, which cut video-analysed prompts before the sound sections.
-    if (Number(data.writer.max_tokens) === 1200 && CATALOG.writer.max_tokens) data.writer.max_tokens = CATALOG.writer.max_tokens.default;
+    // (Only for states saved before max_tokens was imported; a value taken from the Writer node is kept.)
+    if (!data.writerImported && Number(data.writer.max_tokens) === 1200 && CATALOG.writer.max_tokens) data.writer.max_tokens = CATALOG.writer.max_tokens.default;
     for (const [key, spec] of Object.entries(CATALOG.writer)) if (data.writer[key] === undefined) data.writer[key] = spec.default;
     if (!data.writer.model || (CATALOG.writer.model?.options && !CATALOG.writer.model.options.includes(data.writer.model))) data.writer.model = CATALOG.writer.model?.options?.[0] || "";
 
