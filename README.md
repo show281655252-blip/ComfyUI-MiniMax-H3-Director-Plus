@@ -26,7 +26,7 @@ LBH 고해상도 보정의 참조 이미지·키프레임은 **픽셀 공간에�
 
 ### 긴 영상 Motion Lab (de-rope)
 
-`derope_enabled`를 켜면 장면마다 [ComfyUI-MAINodes](https://github.com/matlowai/ComfyUI-MAINodes)의 Motion Lab으로 빠른 동작의 뭉개짐을 줄입니다. 1차 생성 latent에서 동작이 너무 빠른 구간을 찾고(H3 Jerk Oracle, balanced 프리셋), 그 구간을 늘린 영상을 일정의 뒤 70%로 다시 생성한 뒤(H3 Time Smear → H3 V2V Init), 늘렸던 프레임을 빼서 원래 길이로 되돌립니다(H3 Exact Recover). LBH·오디오 재생성보다 먼저, 기본 해상도에서 실행됩니다. 앞 장면에서 이어받은 Motion Context 프레임은 늘리지 않고, 소리는 1차 생성의 것을 그대로 둡니다. 되돌린 프레임은 Video VAE로 다시 인코딩해 장면 캐시에 넣습니다. ComfyUI-MAINodes가 설치돼 있어야 하며(노드를 직접 호출, 코드 복사 없음), 재생성 패스가 늘린 길이로 돌아 **장면당 시간과 GPU 메모리가 크게 늘어납니다.** 켜면 캐시가 분리되고, 승인된 장면이 있으면 설정을 바꿀 때 생성을 멈추고 알립니다.
+`derope_enabled`를 켜면 장면마다 [ComfyUI-MAINodes](https://github.com/matlowai/ComfyUI-MAINodes)의 Motion Lab으로 빠른 동작의 뭉개짐을 줄입니다. 1차 생성 latent에서 동작이 너무 빠른 구간을 찾고(H3 Jerk Oracle, balanced 프리셋), 그 구간을 늘린 영상을 일정의 뒤 70%로 다시 생성한 뒤(H3 Time Smear → H3 V2V Init), 늘렸던 프레임을 빼서 원래 길이로 되돌립니다(H3 Exact Recover). LBH·오디오 재생성보다 먼저, 기본 해상도에서 실행됩니다. 앞 장면에서 이어받은 Motion Context 프레임은 늘리지 않고, 소리는 1차 생성의 것을 그대로 둡니다. 되돌린 프레임은 Video VAE로 다시 인코딩해 장면 캐시에 넣습니다. ComfyUI-MAINodes가 설치돼 있어야 하며(노드를 직접 호출, 코드 복사 없음), 재생성 패스가 늘린 길이로 돌아 **장면당 시간과 GPU 메모리가 크게 늘어납니다.** 켜면 캐시가 분리되고, 승인된 장면이 있으면 설정을 바꿀 때 생성을 멈추고 알립니다. 장면 카드의 **🌀 모션랩 ON/OFF**로 장면마다 끌 수 있습니다(기본 ON = Settings가 켜져 있으면 모든 장면에 적용, 바꾸면 그 장면부터 다시 생성). 동작이 느린 장면은 끄는 것이 좋습니다.
 
 > 비공식 알파 버전입니다. 2장면 연속 생성(승인 → Motion Context → 합치기)과 `.ext` 저장·복원을 GPU에서 확인했습니다. 검증 범위는 아래 [검증 현황](#검증-현황)을 참고하세요.
 > 이전 0.1.0-rc1(버전 고정 패치 설치 방식)은 [`v0.1.0-rc1` 태그](../../tree/v0.1.0-rc1)에서 받을 수 있습니다 (`git checkout v0.1.0-rc1`).

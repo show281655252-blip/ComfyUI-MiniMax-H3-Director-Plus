@@ -2105,6 +2105,8 @@ def _parse_clips_json(value: str, generation_mode="ref2va", motion_context=True)
                 "validated": bool(raw.get("validated", False)),
                 "color_adjustment": _normalize_color_adjustment(raw.get("color_adjustment")),
                 "loras": _normalize_clip_loras(raw.get("loras"), legacy=raw.get("lora")),
+                # Director Motion Lab per scene: applies only while the Settings toggle is on.
+                "derope": raw.get("derope") is not False,
                 "local_refs": _normalize_local_refs(raw.get("local_refs")),
                 "first_frame": _normalize_ref_descriptor(raw.get("first_frame")),
                 "last_frame": _normalize_ref_descriptor(raw.get("last_frame")),
@@ -5307,7 +5309,9 @@ class MiniMaxH3Extender:
             )
 
             derope = kwargs.get("director_derope")
-            if derope:
+            if derope and cfg.get("derope", True) is False:
+                print(f"H3 Extender: Clip {i + 1} Motion Lab de-rope skipped (off on the scene card)")
+            elif derope:
                 from . import director_derope
                 _send_extender_progress(owner, i, len(clips), "sampling",
                                         f"Motion Lab de-rope clip {i + 1}/{len(clips)}")

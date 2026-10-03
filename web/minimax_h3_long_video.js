@@ -803,6 +803,23 @@ export function renderLongVideo(node, state, emit) {
       save(); refresh();
     };
 
+    // Motion Lab (de-rope) per scene: applies only while Settings' Motion Lab toggle is on. A scene
+    // without the field counts as ON, so turning the Settings toggle on keeps covering every scene.
+    const deropeOn = c.derope !== false;
+    const deropeRow = element("div", null, card); deropeRow.className = "dl-card-row";
+    element("span", "🌀 모션랩 (빠른 동작 보정)", deropeRow).className = "dl-label";
+    element("span", null, deropeRow).className = "dl-spacer";
+    const deropeToggle = button(deropeRow, deropeOn ? "ON" : "OFF", async () => {
+      if (c.validated) return;
+      await invalidate(i);
+      c.derope = !deropeOn;
+    });
+    deropeToggle.className = "dl-toggle"; deropeToggle.setAttribute("aria-pressed", String(deropeOn));
+    deropeToggle.disabled ||= c.validated;
+    deropeToggle.title = "Settings의 「🌀 Motion Lab (de-rope)」이 켜져 있을 때만 적용됩니다. "
+      + "ON: 이 장면의 빠른 동작 구간을 늘려 다시 생성해 뭉개짐을 줄입니다(시간 약 3배). OFF: 이 장면은 그대로 생성합니다. "
+      + "바꾸면 이 장면부터 다시 생성합니다.";
+
     const foot = element("div", null, card); foot.className = "dl-card-row";
     const openGroup = groups.find(g => i >= g.a && i <= g.b && isOpen(g));
     if (openGroup) {
