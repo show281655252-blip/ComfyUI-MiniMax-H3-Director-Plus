@@ -645,6 +645,17 @@ export function renderLongVideo(node, state, emit) {
       video.addEventListener("timeupdate", () => {
         if (!video.seeking && !video.paused && video.currentTime >= endTime - 0.02) video.pause();
       });
+      // timeupdate fires only every ~250 ms, so a span could run into the next scene; poll while playing.
+      let stopTimer = null;
+      const stopWatch = () => { clearInterval(stopTimer); stopTimer = null; };
+      video.addEventListener("play", () => {
+        stopWatch();
+        stopTimer = setInterval(() => {
+          if (!video.seeking && !video.paused && video.currentTime >= endTime - 1 / 24) { video.pause(); video.currentTime = lastTime; }
+        }, 40);
+      });
+      video.addEventListener("pause", stopWatch);
+      video.addEventListener("ended", stopWatch);
       video.addEventListener("seeked", () => {
         if (video.currentTime < startTime - 0.02) video.currentTime = startTime;
         else if (video.currentTime >= endTime) video.currentTime = lastTime;
@@ -800,10 +811,14 @@ export function renderLongVideo(node, state, emit) {
     const cachedN = clips.filter(c => rt.cached.includes(c.id)).length;
     element("div", `${clips.length}개 장면 · 설정 길이 ${seconds}초`, box).className = "dl-group-line";
     element("div", `승인 ${approvedN}/${clips.length} · 생성됨 ${cachedN}/${clips.length}`, box).className = "dl-group-line dl-muted";
-    const last = clips[clips.length - 1];
-    element("div", `마지막 장면 ${g.b + 1} (다음 장면은 여기서 이어집니다)`, box).className = "dl-label";
-    const lastSpan = spans.find(x => x.id === last.id);
-    makePreview(box, lastSpan, rt.cached.includes(last.id) || (!rt.cacheChecked && !!lastSpan), (rt.needsRegeneration || []).includes(last.id));
+    // The chain preview is one video with a span per scene; the group plays from its first
+    // previewed scene to its last, so the whole range runs as one clip.
+    const groupSpans = clips.map(c => spans.find(x => x.id === c.id)).filter(x => x && (rt.cached.includes(x.id) || !rt.cacheChecked));
+    const groupSpan = groupSpans.length ? { start: Math.min(...groupSpans.map(x => Number(x.start))), end: Math.max(...groupSpans.map(x => Number(x.end))) } : null;
+    const partial = groupSpans.length && groupSpans.length < clips.length ? ` · 미리보기에 있는 장면 ${groupSpans.length}/${clips.length}개만` : "";
+    element("div", `구간 전체 미리보기 (장면 ${g.a + 1}–${g.b + 1})${partial}`, box).className = "dl-label";
+    makePreview(box, groupSpan, !!groupSpan, clips.some(c => (rt.needsRegeneration || []).includes(c.id)));
+    element("div", `다음 장면은 장면 ${g.b + 1} 끝에서 이어집니다`, box).className = "dl-group-line dl-muted";
     const list = element("div", null, box); list.className = "dl-group-list";
     clips.forEach((c, k) => {
       const index = g.a + k;
