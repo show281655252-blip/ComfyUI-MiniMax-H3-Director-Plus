@@ -96,8 +96,8 @@ function installStyle() {
   .dp-h3 .dl-panel button.dl-dice{padding:6px 0!important;height:33px}
   .dp-h3 .dl-panel button.dl-small{padding:6px 10px!important;font-size:12px!important}
   .dp-h3 .dl-panel .dl-card .dl-toggle{padding:4px 9px!important;min-width:60px;font-size:12px!important}
-  .dp-h3 .dl-panel .dl-card .dl-derope-off .dl-label,.dp-h3 .dl-panel .dl-card .dl-derope-off .dl-toggle{opacity:.4}
-  .dp-h3 .dl-panel .dl-card .dl-derope-note{font-size:11px;margin-right:6px}
+  .dp-h3 .dl-panel .dl-card .dl-master-off .dl-label,.dp-h3 .dl-panel .dl-card .dl-master-off .dl-toggle{opacity:.4}
+  .dp-h3 .dl-panel .dl-card .dl-master-note{font-size:11px;margin-right:6px}
   .dp-h3 .dl-panel .dl-card .dl-toggle:after{width:14px;height:14px}
   .dp-h3 .dl-panel button.dl-nav{position:absolute;top:calc(50% - 26px);z-index:3;width:34px;height:52px;padding:0!important;border-radius:8px!important;background:rgba(16,32,42,.92)!important;font-size:16px!important;box-shadow:0 2px 10px #0008}
   .dp-h3 .dl-panel button.dl-nav.prev{left:-6px}
@@ -805,25 +805,30 @@ export function renderLongVideo(node, state, emit) {
       save(); refresh();
     };
 
-    // Motion Lab (de-rope) per scene: applies only while Settings' Motion Lab toggle is on. A scene
-    // without the field counts as ON, so turning the Settings toggle on keeps covering every scene.
-    const deropeOn = c.derope !== false;
-    const deropeMaster = globalThis.__directorPlusDeropeSetting?.() ?? null;
-    const deropeRow = element("div", null, card); deropeRow.className = "dl-card-row" + (deropeMaster === false ? " dl-derope-off" : "");
-    element("span", "🌀 모션랩 (빠른 동작 보정)", deropeRow).className = "dl-label";
-    element("span", null, deropeRow).className = "dl-spacer";
-    if (deropeMaster === false) element("span", "Settings에서 꺼짐", deropeRow).className = "dl-muted dl-derope-note";
-    const deropeToggle = button(deropeRow, deropeOn ? "ON" : "OFF", async () => {
-      if (c.validated) return;
-      await invalidate(i);
-      c.derope = !deropeOn;
-    });
-    deropeToggle.className = "dl-toggle"; deropeToggle.setAttribute("aria-pressed", String(deropeOn));
-    deropeToggle.disabled ||= c.validated;
-    deropeToggle.title = (deropeMaster === false ? "지금은 Settings의 Motion Lab이 꺼져 있어 이 값과 관계없이 실행되지 않습니다. " : "")
-      + "Settings의 「🌀 Motion Lab (de-rope)」이 켜져 있을 때만 적용됩니다. "
-      + "ON: 이 장면의 빠른 동작 구간을 늘려 다시 생성해 뭉개짐을 줄입니다(시간 약 3배). OFF: 이 장면은 그대로 생성합니다. "
-      + "바꾸면 이 장면부터 다시 생성합니다.";
+    // Per-scene switches for Settings features (Motion Lab, audio regen): they apply only while the
+    // Settings toggle is on. A scene without the field counts as ON, so turning the Settings toggle
+    // on keeps covering every scene; while it is off the row is dimmed.
+    const sceneSwitch = (key, label, master, masterName, help) => {
+      const on = c[key] !== false;
+      const masterValue = settingValue(master);
+      const row = element("div", null, card); row.className = "dl-card-row" + (masterValue === false ? " dl-master-off" : "");
+      element("span", label, row).className = "dl-label";
+      element("span", null, row).className = "dl-spacer";
+      if (masterValue === false) element("span", "Settings에서 꺼짐", row).className = "dl-muted dl-master-note";
+      const toggle = button(row, on ? "ON" : "OFF", async () => {
+        if (c.validated) return;
+        await invalidate(i);
+        c[key] = !on;
+      });
+      toggle.className = "dl-toggle"; toggle.setAttribute("aria-pressed", String(on));
+      toggle.disabled ||= c.validated;
+      toggle.title = (masterValue === false ? `지금은 Settings의 ${masterName}이 꺼져 있어 이 값과 관계없이 실행되지 않습니다. ` : "")
+        + `Settings의 「${masterName}」이 켜져 있을 때만 적용됩니다. ${help} 바꾸면 이 장면부터 다시 생성합니다.`;
+    };
+    sceneSwitch("derope", "🌀 모션랩 (빠른 동작 보정)", "derope_enabled", "🌀 Motion Lab (de-rope)",
+      "ON: 이 장면의 빠른 동작 구간을 늘려 다시 생성해 뭉개짐을 줄입니다(시간 약 3배). OFF: 이 장면은 그대로 생성합니다.");
+    sceneSwitch("audio_regen", "🔊 오디오 재생성", "audio_regen_enabled", "🔊 오디오 재생성",
+      "ON: 이 장면의 소리를 30스텝으로 다시 만들어 잡음을 줄입니다(장면당 약 1~2분). OFF: 1차 생성 소리를 그대로 씁니다.");
 
     const foot = element("div", null, card); foot.className = "dl-card-row";
     const openGroup = groups.find(g => i >= g.a && i <= g.b && isOpen(g));
@@ -1058,26 +1063,26 @@ function applyProjectSettings(long) {
 
 function directors() { return (app.graph?._nodes || []).filter(n => n.comfyClass === "DirectorPlusTimeline" && n.__directorLong); }
 
-// The Settings toggle (or an unlinked derope_enabled widget on Director · 긴 영상) is the master switch
-// for the per-scene 모션랩 toggles. true / false, or null when no such widget is on the canvas.
-function deropeSetting() {
+// The Settings toggle (or an unlinked widget of the same name on Director · 긴 영상) is the master
+// switch for a per-scene toggle. true / false, or null when no such widget is on the canvas.
+const MASTER_SETTINGS = ["derope_enabled", "audio_regen_enabled"];
+function settingValue(name) {
   for (const target of app.graph?._nodes || []) {
-    const widget = target.widgets?.find(w => w.name === "derope_enabled");
+    const widget = target.widgets?.find(w => w.name === name);
     if (!widget) continue;
-    if ((target.inputs || []).some(i => i.name === "derope_enabled" && i.link != null)) continue;
+    if ((target.inputs || []).some(i => i.name === name && i.link != null)) continue;
     return Boolean(widget.value);
   }
   return null;
 }
-globalThis.__directorPlusDeropeSetting = deropeSetting;
 
-// Cards only redraw on their own events; follow the Settings toggle so the 모션랩 rows dim at once.
+// Cards only redraw on their own events; follow the Settings toggles so the card rows dim at once.
 setInterval(() => {
-  const value = deropeSetting();
+  const value = MASTER_SETTINGS.map(settingValue).join();
   for (const node of directors()) {
     const rt = node.__directorLong;
-    if (rt.deropeSetting === value) continue;
-    rt.deropeSetting = value;
+    if (rt.masterSettings === value) continue;
+    rt.masterSettings = value;
     node.__directorPlusH3Render?.();
   }
 }, 500);

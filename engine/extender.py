@@ -2107,6 +2107,7 @@ def _parse_clips_json(value: str, generation_mode="ref2va", motion_context=True)
                 "loras": _normalize_clip_loras(raw.get("loras"), legacy=raw.get("lora")),
                 # Director Motion Lab per scene: applies only while the Settings toggle is on.
                 "derope": raw.get("derope") is not False,
+                "audio_regen": raw.get("audio_regen") is not False,
                 "local_refs": _normalize_local_refs(raw.get("local_refs")),
                 "first_frame": _normalize_ref_descriptor(raw.get("first_frame")),
                 "last_frame": _normalize_ref_descriptor(raw.get("last_frame")),
@@ -5332,7 +5333,10 @@ class MiniMaxH3Extender:
                     str(scheduler), 4, float(denoise), sigmas=kwargs["sigmas"][-5:])
 
             audio_regen = kwargs.get("director_audio_regen")
-            if audio_regen:
+            if audio_regen and cfg.get("audio_regen", True) is False:
+                print(f"H3 Extender: Clip {i + 1} audio regen skipped (off on the scene card)")
+            elif audio_regen:
+                print(f"H3 Extender: Clip {i + 1} audio regen")
                 from . import director_audio_regen
                 regen_model, _ = _apply_per_clip_loras(self, audio_regen["model"], clip, cfg.get("loras"), i)
                 sampled = director_audio_regen.regenerate(
