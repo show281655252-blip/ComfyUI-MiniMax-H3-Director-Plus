@@ -118,6 +118,13 @@ function installStyle() {
   .dp-h3 .dl-panel .dl-muted{color:#adc0ce;font-size:12px}
   .dp-h3 .dl-panel strong{font-size:17px}
   .dp-h3 .dl-panel .dl-spacer{flex:1}
+  .dp-h3 .dl-panel .dl-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px 0;margin:2px 0 4px}
+  .dp-h3 .dl-panel .dl-tgroup{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;padding:0 14px;border-left:1px solid #2f4350}
+  .dp-h3 .dl-panel .dl-tgroup:first-child{padding-left:0;border-left:0}
+  .dp-h3 .dl-panel .dl-tlabel{font-size:11px;color:#8fa3b2;margin-right:2px}
+  .dp-h3 .dl-panel button.dl-accent{background:rgba(126,235,167,.16)!important;border-color:rgba(126,235,167,.75)!important;color:#d7ffe3!important}
+  .dp-h3 .dl-panel button.dl-switch.on{background:rgba(70,140,190,.32)!important;border-color:#6aaad6!important;color:#e6f4ff!important}
+  .dp-h3 .dl-panel button.dl-switch.on:before{content:"✓ "}
   `;
   document.head.append(style);
 }
@@ -436,9 +443,18 @@ export function renderLongVideo(node, state, emit) {
   element("strong", "장면 타임라인", title);
 
   element("span", null, title).className = "dl-spacer";
-  button(title, "+ 장면 추가", () => { s.clips.push(newClip(hasExternal())); rt.selected = s.clips.length - 1; });
+  // Grouped toolbar: 만들기 | 승인 | 보기. Each group wraps as a unit, never a lone button.
+  const tools = element("div", null, timeline); tools.className = "dl-tools";
+  const toolGroup = label => {
+    const g = element("div", null, tools); g.className = "dl-tgroup";
+    if (label) element("span", label, g).className = "dl-tlabel";
+    return g;
+  };
+  const makeGroup = toolGroup(""), approveGroup = toolGroup("승인"), viewGroup = toolGroup("보기");
+  button(makeGroup, "+ 장면 추가", () => { s.clips.push(newClip(hasExternal())); rt.selected = s.clips.length - 1; });
   if (window.DirectorPlusPromptStudio) {
-    const studio = element("button", "✍ 프롬프트 작성", title);
+    const studio = element("button", "✍ 프롬프트 작성", makeGroup);
+    studio.className = "dl-accent";
     studio.title = "선택한 장면의 프롬프트를 PromptDirector로 작성합니다";
     studio.disabled = rt.busy || rt.running;
     studio.onclick = () => window.DirectorPlusPromptStudio.open(node, { scene: rt.selected });
@@ -478,8 +494,8 @@ export function renderLongVideo(node, state, emit) {
 
   // Bulk approval, same rules as the per-card checkbox: approval is a contiguous prefix of
   // generated scenes, and un-approving keeps every cached scene so it can be re-approved.
-  const bulkButton = (text, tip, action) => {
-    const b = element("button", text, title);
+  const bulkButton = (text, tip, action, parent = approveGroup) => {
+    const b = element("button", text, parent);
     b.title = tip;
     b.disabled = rt.busy || rt.running;
     b.onclick = async () => {
@@ -505,7 +521,7 @@ export function renderLongVideo(node, state, emit) {
       ? `장면 ${approved}개 승인 · 장면 ${index + 1}부터는 아직 생성되지 않았습니다.`
       : `장면 ${approved}개 승인 · 모든 장면 승인 완료`;
   });
-  bulkButton("전체 승인 해제", "모든 장면의 승인을 해제합니다. 생성된 캐시는 남으므로 다시 승인하면 재생성 없이 승인됩니다.", async () => {
+  bulkButton("전체 해제", "모든 장면의 승인을 해제합니다. 생성된 캐시는 남으므로 다시 승인하면 재생성 없이 승인됩니다.", async () => {
     const approved = s.clips.filter(c => c.validated).length;
     if (!approved) return "승인된 장면이 없습니다.";
     await setValidated(0, false);
@@ -537,15 +553,15 @@ export function renderLongVideo(node, state, emit) {
     (s.groups ||= []).push({ id: crypto.randomUUID(), from: s.clips[a].id, to: s.clips[b].id });
     rt.scrollTo = a;
     return `장면 ${a + 1}–${b + 1}을 카드 한 장으로 묶었습니다.`;
-  });
+  }, viewGroup);
   const foldOn = s.fold_validated !== false;
-  const foldButton = bulkButton(`승인 장면 접기 ${foldOn ? "ON" : "OFF"}`, "ON이면 앞에서부터 승인된 장면(2개 이상)을 카드 한 장으로 접습니다.", async () => {
+  const foldButton = bulkButton("승인 장면 접기", `${foldOn ? "켜짐" : "꺼짐"} — 켜면 앞에서부터 승인된 장면(2개 이상)을 카드 한 장으로 접습니다. 누르면 ${foldOn ? "끕니다" : "켭니다"}.`, async () => {
     s.fold_validated = !foldOn;
     rt.openGroups?.delete("auto");
     return "";
-  });
+  }, viewGroup);
   foldButton.setAttribute("aria-pressed", String(foldOn));
-  if (foldOn) foldButton.className = "dl-blue";
+  foldButton.className = "dl-switch" + (foldOn ? " on" : "");
   title.append(clearButton); // destructive action last, at the far right
 
   const preview = rt.preview || s.last_preview?.video;
