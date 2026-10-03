@@ -35,6 +35,7 @@ from comfy_extras.nodes_minimax_h3 import _encode_ref_audio
 from .extender import MiniMaxH3Extender, _manual_effective_resolution
 from . import director_lbh
 from . import director_audio_regen
+from . import director_derope
 
 from .motion_context_disk import MiniMaxH3MotionContextDiskFinalDecode, _find_ffmpeg, _comfy_media_item, _video_output_from_path, normalize_full_batch_export_profile
 
@@ -138,6 +139,8 @@ def prepare_state(guide):
         signature = json.dumps([signature, state["audio_regen"]])
     if state.get("ref_video_resolution"):
         signature = json.dumps([signature, state["ref_video_resolution"]])
+    if state.get("derope"):
+        signature = json.dumps([signature, state["derope"]])
 
     owner = "director_" + state["project_id"] + "_" + hashlib.sha256(signature.encode()).hexdigest()[:12]
 
@@ -246,6 +249,7 @@ class DirectorPlusGenerate:
             "lbh_full_first_pass": ("BOOLEAN", {"default": False, "tooltip": "LBH 8+4: finish the whole schedule at base resolution, then refine with its last 4 steps."}),
             "audio_regen_enabled": ("BOOLEAN", {"default": False, "tooltip": "Re-sample each scene's audio with the base model (30 steps, denoise 0.5) on a half-size video."}),
             "audio_regen_model": ("MODEL", {"tooltip": "Base model before HyperFlow/turbo LoRAs, with the same sigma shift."}),
+            "derope_enabled": ("BOOLEAN", {"default": False, "tooltip": "Motion Lab de-rope (ComfyUI-MAINodes): regenerate each scene's fast-motion spans slowed down, then restore real time. Much slower per scene."}),
         }, "hidden": {"prompt": "PROMPT", "unique_id": "UNIQUE_ID"}}
 
     RETURN_TYPES = ("H3_MOTION_DISK_CACHE",)
@@ -263,7 +267,7 @@ class DirectorPlusGenerate:
     def generate(self, guide, model, clip, vae, audio_vae, sigmas, sampler_name,
                  lbh_enabled=False, lbh_scale=1.5, lbh_model_name="minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors",
                  lbh_full_first_pass=False, audio_regen_enabled=False, audio_regen_model=None,
-                 prompt=None, unique_id=None):
+                 derope_enabled=False, prompt=None, unique_id=None):
 
         if guide.get("minimax_ref_items"):
 
@@ -280,6 +284,14 @@ class DirectorPlusGenerate:
         ):
             raise ValueError("Director: 레퍼런스 영상 해상도가 바뀌었습니다. 기존 해상도로 되돌리거나 장면 승인을 모두 해제한 뒤 다시 생성하세요.")
         guide["long_video"]["ref_video_resolution"] = ref_resolution
+        derope = director_derope.settings(derope_enabled)
+        if derope:
+            director_derope.check_installed()
+        if guide["long_video"].get("derope") != derope and any(
+            clip.get("validated") for clip in guide["long_video"].get("clips", [])
+        ):
+            raise ValueError("Director: Motion Lab(de-rope) 설정이 바뀌었습니다. 기존 설정으로 되돌리거나 장면 승인을 모두 해제한 뒤 다시 생성하세요.")
+        guide["long_video"]["derope"] = derope
         if lbh and len(sigmas) < 6:
             raise ValueError("Director LBH needs at least 5 sampling steps (base + final 4-step refine).")
         guide["long_video"]["lbh"] = lbh
@@ -333,6 +345,7 @@ class DirectorPlusGenerate:
 
             unique_id=owner, sigmas=sigmas, initial_context=initial_context, director_lbh=lbh,
             director_audio_regen={"config": audio_regen, "model": audio_regen_model} if audio_regen else None,
+            director_derope=derope,
             director_export_profile=output_export_profile(prompt, unique_id), **media,
 
         )

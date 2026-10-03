@@ -5306,6 +5306,16 @@ class MiniMaxH3Extender:
                 denoised=bool(lbh) and not director_lbh.full_first_pass(lbh),
             )
 
+            derope = kwargs.get("director_derope")
+            if derope:
+                from . import director_derope
+                _send_extender_progress(owner, i, len(clips), "sampling",
+                                        f"Motion Lab de-rope clip {i + 1}/{len(clips)}")
+                sampled, derope_report = director_derope.derope(
+                    clip_model, positive, sampled, kwargs["sigmas"], cfg["seed"], str(sampler_name),
+                    vae, frame_count, trim_frames or 0, derope, _sample_h3)
+                print(f"H3 Extender: Clip {i + 1} Motion Lab de-rope: {derope_report}")
+
             if lbh:
                 sampled = director_lbh.upscale_latent(sampled, lbh)
                 positive = director_lbh.resize_conditioning(

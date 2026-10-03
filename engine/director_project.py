@@ -26,6 +26,8 @@ def project_owner(state, widgets):
         signature = json.dumps([signature, state["audio_regen"]])
     if state.get("ref_video_resolution"):
         signature = json.dumps([signature, state["ref_video_resolution"]])
+    if state.get("derope"):
+        signature = json.dumps([signature, state["derope"]])
     return "director_" + state["project_id"] + "_" + hashlib.sha256(signature.encode()).hexdigest()[:12]
 
 
