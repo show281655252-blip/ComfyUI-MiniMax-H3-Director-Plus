@@ -88,6 +88,7 @@ function installStyle() {
   .dp-h3 .dl-panel .dl-card-row{display:flex;align-items:center;gap:6px}
   .dp-h3 .dl-panel .dl-label{color:#9fb6c5;font-size:12px;font-weight:600}
   .dp-h3 .dl-panel .dl-linked{color:#7feeff;font-size:11px;font-weight:600;white-space:nowrap}
+  .dp-h3 .dl-panel textarea.dl-group-note{min-height:64px;max-height:160px;resize:vertical;font-size:12px!important;line-height:1.45;cursor:text}
   .dp-h3 .dl-panel textarea.dl-card-prompt{flex:1 1 auto;min-height:420px;font-size:12px!important;line-height:1.45;cursor:text}
   .dp-h3 .dl-panel textarea.dl-card-prompt.locked{opacity:.65;cursor:default}
   .dp-h3 .dl-panel .dl-card-grid{display:grid;grid-template-columns:1fr 38px 84px;gap:6px;align-items:end}
@@ -566,6 +567,8 @@ export function renderLongVideo(node, state, emit) {
   let approvedEnd = -1;
   while (approvedEnd + 1 < s.clips.length && s.clips[approvedEnd + 1].validated) approvedEnd += 1;
   // A sealed range ("여기서 고정") keeps its own card; the auto fold only gathers approvals after it.
+  if (!s.group_notes || typeof s.group_notes !== "object") s.group_notes = {};
+  for (const id of Object.keys(s.group_notes)) if (clipIndex(id) < 0 || !String(s.group_notes[id] || "").trim()) delete s.group_notes[id];
   const sealedAt = s.fold_after ? clipIndex(s.fold_after) : -1;
   if (s.fold_after && sealedAt < 0) delete s.fold_after;
   const auto = s.fold_validated !== false && approvedEnd - (sealedAt + 1) >= 1 ? { kind: "auto", a: sealedAt + 1, b: approvedEnd } : null;
@@ -829,6 +832,18 @@ export function renderLongVideo(node, state, emit) {
     const seconds = Math.round(clips.reduce((t, c) => t + Number(c.duration || 0), 0) * 1000) / 1000;
     const approvedN = clips.filter(c => c.validated).length;
     const cachedN = clips.filter(c => rt.cached.includes(c.id)).length;
+    const noteKey = clips[0].id;
+    const note = element("textarea", null, box); note.className = "dl-group-note";
+    note.value = s.group_notes[noteKey] || "";
+    note.placeholder = "이 구간 설명 (예: 도입 — 무대 등장, 손 인사)";
+    note.title = "이 묶음이 어떤 장면인지 적어 두는 메모입니다. 생성에는 쓰이지 않습니다.";
+    note.dataset.captureWheel = "true";
+    for (const name of ["pointerdown", "mousedown"]) note.addEventListener(name, e => e.stopPropagation());
+    note.onchange = () => {
+      const text = note.value.trim();
+      if (text) s.group_notes[noteKey] = note.value; else delete s.group_notes[noteKey];
+      save();
+    };
     element("div", `${clips.length}개 장면 · 설정 길이 ${seconds}초`, box).className = "dl-group-line";
     element("div", `승인 ${approvedN}/${clips.length} · 생성됨 ${cachedN}/${clips.length}`, box).className = "dl-group-line dl-muted";
     // The chain preview is one video with a span per scene; the group plays from its first
@@ -885,7 +900,8 @@ export function renderLongVideo(node, state, emit) {
     const bar = element("button", null, cards); bar.type = "button"; bar.className = "dl-group-bar";
     barOf[g.a] = bar;
     element("span", `◀ 장면 ${g.a + 1}–${g.b + 1} 접기`, bar);
-    bar.title = g.kind === "auto" ? "승인된 장면을 다시 접습니다" : "이 묶음을 다시 접습니다";
+    bar.title = (g.kind === "auto" ? "승인된 장면을 다시 접습니다" : "이 묶음을 다시 접습니다")
+      + (s.group_notes[s.clips[g.a].id] ? `\n${s.group_notes[s.clips[g.a].id]}` : "");
     for (const name of ["pointerdown", "mousedown"]) bar.addEventListener(name, e => e.stopPropagation());
     bar.onclick = e => { e.stopPropagation(); setOpen(g, false); rt.scrollTo = g.a; refresh(); };
   };
