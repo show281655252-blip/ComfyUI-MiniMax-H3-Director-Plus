@@ -35,9 +35,10 @@ function installStyle() {
   .dp-ps-top{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid #243035}
   .dp-ps-top h2{margin:0;font-size:17px;font-weight:700}
   .dp-ps-top .grow{flex:1}
-  .dp-ps-body{flex:1;overflow:auto;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(360px,.95fr);gap:16px;padding:16px 18px}
+  .dp-ps-body{flex:1;min-height:0;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(360px,.95fr);grid-template-rows:minmax(0,1fr);gap:16px;padding:16px 18px}
+  .dp-ps-body>.dp-ps-col{overflow-y:auto;overflow-x:hidden;min-height:0;padding-right:6px;overscroll-behavior:contain}
   .dp-ps-col{display:flex;flex-direction:column;gap:14px;min-width:0}
-  .dp-ps-right{position:sticky;top:0;align-self:start}
+  
   .dp-ps-card{background:#151c1f;border:1px solid #273238;border-radius:10px;padding:14px 16px}
   .dp-ps-card h3{margin:0 0 10px;font-size:15px;display:flex;align-items:center;gap:8px}
   .dp-ps-card h3 .grow{flex:1}
@@ -72,7 +73,7 @@ function installStyle() {
   .dp-ps .status{font-size:12.5px;color:#b9e3cf;min-height:18px}
   .dp-ps .status.err{color:#ff8e8e}
   .dp-ps .chk{display:flex;align-items:center;gap:6px;height:34px}
-  @media (max-width:1150px){.dp-ps-body{grid-template-columns:1fr}.dp-ps-right{position:static}.dp-ps-grid4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:1150px){.dp-ps-body{grid-template-columns:1fr;grid-template-rows:none;overflow:auto}.dp-ps-body>.dp-ps-col{overflow:visible;padding-right:0}.dp-ps-grid4{grid-template-columns:repeat(2,minmax(0,1fr))}}
   `;
   document.head.append(style);
 }
