@@ -29,6 +29,43 @@ def video_has_audio(path, input_directory):
             return bool(container.streams.audio)
     except Exception:
         return True  # unreadable here: let the normal loader report the real problem
+
+
+def reference_megapixels(megapixels):
+    """Canonical UI setting, shared by resizing and cache identity."""
+    try:
+        target = float(megapixels or 0)
+    except (TypeError, ValueError):
+        return 0
+    return target if target in (0.83, 0.65, 0.52) else 0
+
+
+def scale_video_megapixels(video, megapixels, label="reference video"):
+    """Downscale [T,H,W,C] on the H3 32px grid without changing frame count.
+
+    Small references are not enlarged. Grid rounding approximates the aspect ratio.
+    """
+    target = reference_megapixels(megapixels)
+    if not target or not hasattr(video, "shape") or len(video.shape) != 4:
+        return video
+    height, width = int(video.shape[1]), int(video.shape[2])
+    if video.shape[0] == 0 or min(height, width) < 32:
+        return video
+    ratio = width / float(height)
+    new_w = max(32, round(math.sqrt(target * 1e6 * ratio) / 32) * 32)
+    new_h = max(32, round(math.sqrt(target * 1e6 / ratio) / 32) * 32)
+    if new_w >= width or new_h >= height:
+        return video
+    import comfy.utils
+    import torch
+    chunks = []
+    for start in range(0, video.shape[0], 16):
+        part = video[start:start + 16, ..., :3].movedim(-1, 1)
+        chunks.append(comfy.utils.common_upscale(part, new_w, new_h, "lanczos", "disabled").movedim(1, -1))
+    logging.info("[Director Plus] %s resized %dx%d -> %dx%d (%.2f MP)", label, width, height, new_w, new_h, new_w * new_h / 1e6)
+    return torch.cat(chunks, dim=0).clamp(0.0, 1.0)
+
+
 REFMOD_ALIAS = re.compile(r"<\s*refmod\s*_?\s*(\d+)(?:\s*:[^>]+)?\s*>", re.I)
 
 
@@ -297,6 +334,7 @@ class DirectorPlusTimeline:
                     if video_mode in {"video", "video_audio"}:
                         video = load_video(value, input_directory, trim_start=trim_start, trim_end=trim_end, target_fps=frame_rate) if isinstance(value, str) and input_directory else value
                         video = scale_input_media(video, input_scaling, width, height)
+                        video = scale_video_megapixels(video, item.get("ref_mp"), str(item.get("value") or "reference video"))
                         ref_videos[f"ref_video_{len(ref_videos) + 1}"] = video
                         video_duration = float(video.shape[0]) / frame_rate if hasattr(video, "shape") else item.get("duration")
                         videos.append({**item, "duration": video_duration})
@@ -367,6 +405,10 @@ class DirectorPlusTimeline:
             guide["minimax_ref_items"] = refmod_items
             guide["selection_stamp"] = max(refmod_fingerprint(item["name"])[0] for item in refmod_items)
         guide["long_video"] = long_video
+        guide["ref_video_resolution"] = [
+            [index, reference_megapixels(item.get("ref_mp"))] for index, item in enumerate(videos)
+            if reference_megapixels(item.get("ref_mp"))
+        ]
         normalize_guide(guide)
         selected_model = ref2va_model if mode == "REF2VA" else fl2va_model
         log_dasiwa("MiniMax H3 Director", f"mode={mode}; requested_model={'ref2va_model' if mode == 'REF2VA' else 'fl2va_model'}; passed_model={_describe_model(selected_model)}; canvas={width}x{height}; frames={length}; fps={frame_rate}; refs=images:{len(ref_images)},videos:{len(ref_videos)},video_audio:{len(ref_video_audios)},audio:{len(ref_audios)}; timeline_items={len(items)}")

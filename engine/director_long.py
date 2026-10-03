@@ -136,6 +136,8 @@ def prepare_state(guide):
         signature = json.dumps([source_key, guide["width"], guide["height"], state.get("context_length", "22"), state["lbh"]])
     if state.get("audio_regen"):
         signature = json.dumps([signature, state["audio_regen"]])
+    if state.get("ref_video_resolution"):
+        signature = json.dumps([signature, state["ref_video_resolution"]])
 
     owner = "director_" + state["project_id"] + "_" + hashlib.sha256(signature.encode()).hexdigest()[:12]
 
@@ -272,6 +274,12 @@ class DirectorPlusGenerate:
         lbh = director_lbh.settings(lbh_enabled, lbh_scale, lbh_model_name, lbh_full_first_pass)
         audio_regen = director_audio_regen.settings(audio_regen_enabled, audio_regen_model)
         guard_settings_change(guide["long_video"], lbh, audio_regen)
+        ref_resolution = guide.get("ref_video_resolution", [])
+        if guide["long_video"].get("ref_video_resolution", []) != ref_resolution and any(
+            clip.get("validated") for clip in guide["long_video"].get("clips", [])
+        ):
+            raise ValueError("Director: 레퍼런스 영상 해상도가 바뀌었습니다. 기존 해상도로 되돌리거나 장면 승인을 모두 해제한 뒤 다시 생성하세요.")
+        guide["long_video"]["ref_video_resolution"] = ref_resolution
         if lbh and len(sigmas) < 6:
             raise ValueError("Director LBH needs at least 5 sampling steps (base + final 4-step refine).")
         guide["long_video"]["lbh"] = lbh
