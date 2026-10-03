@@ -76,7 +76,7 @@ function installStyle() {
   .dp-h3 .dl-panel input:disabled,.dp-h3 .dl-panel textarea:disabled{opacity:.65}
   .dp-h3 .dl-panel textarea{width:100%;min-height:100px;resize:vertical}
   .dp-h3 .dl-panel .dl-strip{position:relative}
-  .dp-h3 .dl-panel .dl-card.dl-group{flex:0 0 340px;width:340px;border-style:dashed;border-color:#5b7d93;background:#101c24}.dp-h3 .dl-panel .dl-group-line{font-size:13px;color:#d6e4ee}.dp-h3 .dl-panel .dl-group-list{display:flex;flex-direction:column;gap:4px;max-height:360px;overflow-y:auto}.dp-h3 .dl-panel button.dl-group-row{display:flex;gap:8px;align-items:center;text-align:left;padding:5px 8px!important;font-size:12px!important;background:#172833!important;border:1px solid #2c4252!important}.dp-h3 .dl-panel .dl-group-num{white-space:nowrap;font-weight:600}.dp-h3 .dl-panel .dl-group-text{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#9fb3c2}.dp-h3 .dl-panel button.dl-group-bar{flex:0 0 40px;width:40px;min-height:900px;padding:0!important;writing-mode:vertical-rl;font-size:12px!important;border:1px dashed #5b7d93!important;background:#101c24!important;border-radius:9px!important}.dp-h3 .dl-panel .dl-scenebar{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:2px 0 6px}.dp-h3 .dl-panel button.dl-scene-num{min-width:28px;padding:3px 6px!important;font-size:12px!important;background:#1a2a35!important}.dp-h3 .dl-panel button.dl-scene-num.made{border-color:#c9a64a!important}.dp-h3 .dl-panel button.dl-scene-num.ok{border-color:#5fbf7a!important;color:#bff3d0}.dp-h3 .dl-panel button.dl-scene-num.sel{background:#2f5874!important}
+  .dp-h3 .dl-panel .dl-card.dl-group{flex:0 0 340px;width:340px;border-style:dashed;border-color:#5b7d93;background:#101c24}.dp-h3 .dl-panel .dl-group-line{font-size:13px;color:#d6e4ee}.dp-h3 .dl-panel .dl-group-list{display:flex;flex-direction:column;gap:4px;max-height:360px;overflow-y:auto}.dp-h3 .dl-panel button.dl-group-row{display:flex;gap:8px;align-items:center;text-align:left;padding:5px 8px!important;font-size:12px!important;background:#172833!important;border:1px solid #2c4252!important}.dp-h3 .dl-panel .dl-group-num{white-space:nowrap;font-weight:600}.dp-h3 .dl-panel .dl-group-text{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#9fb3c2}.dp-h3 .dl-panel button.dl-group-bar{flex:0 0 40px;width:40px;scroll-snap-align:start;min-height:900px;padding:0!important;writing-mode:vertical-rl;font-size:12px!important;border:1px dashed #5b7d93!important;background:#101c24!important;border-radius:9px!important}.dp-h3 .dl-panel .dl-scenebar{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:2px 0 6px}.dp-h3 .dl-panel button.dl-scene-num{min-width:28px;padding:3px 6px!important;font-size:12px!important;background:#1a2a35!important}.dp-h3 .dl-panel button.dl-scene-num.made{border-color:#c9a64a!important}.dp-h3 .dl-panel button.dl-scene-num.ok{border-color:#5fbf7a!important;color:#bff3d0}.dp-h3 .dl-panel button.dl-scene-num.sel{background:#2f5874!important}
   .dp-h3 .dl-panel .dl-cards{display:flex;gap:12px;overflow-x:auto;overflow-y:hidden;padding:3px 3px 12px;scroll-snap-type:x proximity;scrollbar-gutter:stable}
   .dp-h3 .dl-panel .dl-card{flex:0 0 480px;width:480px;min-height:900px;border:1px solid #466071;border-radius:9px;background:#14222b;padding:9px;display:flex;flex-direction:column;gap:8px;scroll-snap-align:start;cursor:pointer}
   .dp-h3 .dl-panel .dl-card-title{font-size:15px}
@@ -578,6 +578,7 @@ export function renderLongVideo(node, state, emit) {
   const strip = element("div", null, timeline); strip.className = "dl-strip";
   const cards = element("div", null, strip); cards.className = "dl-cards";
   const cardOf = []; // clip index -> its card, or the folded group card that holds it
+  const barOf = []; // first clip index of an open group -> its fold bar
   const CARD_STEP = 492;
   let syncNav = () => {};
   const settle = () => { rt.scrollLeft = cards.scrollLeft; syncNav(); };
@@ -617,7 +618,8 @@ export function renderLongVideo(node, state, emit) {
   setTimeout(() => {
     restored = true;
     if (rt.scrollTo != null) {
-      const target = cardOf[rt.scrollTo];
+      const target = (rt.scrollToBar && barOf[rt.scrollTo]) || cardOf[rt.scrollTo];
+      rt.scrollToBar = false;
       rt.scrollTo = null;
       if (target) glide(target.offsetLeft - cards.offsetLeft - 4);
     } else if (restoreLeft) cards.scrollLeft = restoreLeft;
@@ -766,6 +768,11 @@ export function renderLongVideo(node, state, emit) {
     };
 
     const foot = element("div", null, card); foot.className = "dl-card-row";
+    const openGroup = groups.find(g => i >= g.a && i <= g.b && isOpen(g));
+    if (openGroup) {
+      const fold = button(foot, `장면 ${openGroup.a + 1}–${openGroup.b + 1} 접기`, async () => { setOpen(openGroup, false); rt.selected = openGroup.a; rt.scrollTo = openGroup.a; });
+      fold.className = "dl-small"; fold.title = "이 장면이 들어 있는 구간을 다시 카드 한 장으로 접습니다";
+    }
     const again = button(foot, "다시 생성", async () => { rt.selected = i; await invalidate(i); save(); await app.queuePrompt(0, 1); });
     again.className = "dl-small";
     const remove = button(foot, "삭제", async () => { if (s.clips.length < 2) return; await invalidate(i); s.clips.splice(i, 1); rt.selected = Math.min(rt.selected, s.clips.length - 1); });
@@ -809,7 +816,7 @@ export function renderLongVideo(node, state, emit) {
       rowEl.onclick = e => { e.stopPropagation(); setOpen(g, true); rt.selected = index; rt.scrollTo = index; save(); refresh(); };
     });
     const foot = element("div", null, box); foot.className = "dl-card-row";
-    const open = button(foot, "펼치기", async () => { setOpen(g, true); rt.scrollTo = g.a; });
+    const open = button(foot, "펼치기", async () => { setOpen(g, true); rt.scrollTo = g.a; rt.scrollToBar = true; });
     open.className = "dl-small";
     if (g.kind === "manual") {
       const ungroup = button(foot, "묶음 풀기", async () => { s.groups = s.groups.filter(x => x !== g.g); setOpen(g, false); rt.scrollTo = g.a; });
@@ -820,6 +827,7 @@ export function renderLongVideo(node, state, emit) {
   };
   const renderGroupBar = g => {
     const bar = element("button", null, cards); bar.type = "button"; bar.className = "dl-group-bar";
+    barOf[g.a] = bar;
     element("span", `◀ 장면 ${g.a + 1}–${g.b + 1} 접기`, bar);
     bar.title = g.kind === "auto" ? "승인된 장면을 다시 접습니다" : "이 묶음을 다시 접습니다";
     for (const name of ["pointerdown", "mousedown"]) bar.addEventListener(name, e => e.stopPropagation());
