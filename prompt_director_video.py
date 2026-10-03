@@ -161,6 +161,23 @@ def _drop_silent_soundtracks(link, labels, videos, notes):
     return kept
 
 
+SOUNDTRACK_RULE = (
+    "SOUND RULE for <Audio {n}> (the reference video's own soundtrack, V+A): in retention_analysis mark "
+    "<Audio {n}> fully_copy. In overall_soundscape write that the soundtrack follows <Audio {n}> (fully_copy): "
+    "keep its ambience, sound effects and their timing in sync with the matching actions, and do not invent "
+    "sounds, dialogue or effects that are not in it. In non_diegetic_music write: follow <Audio {n}> "
+    "(fully_copy) — keep any music it contains and add none. Do not write N/A for these two fields.")
+
+
+def _soundtrack_rules(labels):
+    """Tell the writer to take a V+A soundtrack as it is instead of describing new sounds."""
+    out = []
+    for label in labels:
+        match = re.match(r"<Audio (\d+)>: soundtrack of <Video \d+>", str(label))
+        out.append(f"{label}\n{SOUNDTRACK_RULE.format(n=match.group(1))}" if match else label)
+    return out
+
+
 def wrap_read_director(link):
     original = link.read_director
     if getattr(original, "_director_plus_video", False):
@@ -209,7 +226,7 @@ def wrap_read_director(link):
                                 f"{'cached' if cached else f'{time.time() - began:.0f}s'}, {len(text)} chars.")
             logging.info("[Director Plus] Prompt Writer: <Video %d> motion analysis %s (%d chars).",
                          number, "from cache" if cached else f"in {time.time() - began:.0f}s", len(text))
-        out["other_labels"] = labels
+        out["other_labels"] = _soundtrack_rules(labels)
         return out
 
     read_director._director_plus_video = True
