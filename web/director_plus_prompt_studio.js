@@ -8,6 +8,28 @@ import { api } from "../../scripts/api.js";
 const PROP = "directorPlusPromptStudio";
 const REF_MAX = 9;
 let CATALOG = null, VOCAB = null;
+// Jobs belong to the node, not to the window: closing the window must not lose a running write.
+// node -> { kind, label, text, t0 }. The result is written into node.properties[PROP] and, if a
+// window for the node is open, shown through node.__dpPsView; otherwise kept as a notice.
+const JOBS = new WeakMap();
+
+async function runJob(node, job, request, apply) {
+  if (JOBS.has(node)) throw new Error("작업이 이미 진행 중입니다.");
+  JOBS.set(node, { ...job, t0: Date.now() });
+  node.__dpPsView?.started(JOBS.get(node));
+  let notice;
+  try {
+    notice = apply(node.properties[PROP], await request()) || {};
+  } catch (e) {
+    notice = { text: e.message, err: true };
+  } finally {
+    JOBS.delete(node);
+  }
+  notice.kind = job.kind;
+  app.graph?.setDirtyCanvas(true, true);
+  if (node.__dpPsView) node.__dpPsView.done(notice);
+  else node.properties[PROP].notice = notice;  // shown when the window opens again
+}
 
 const SETTING_FIELDS = [
   ["style", "스타일"], ["theme", "장르 · 테마", "search"], ["lens", "렌즈"], ["depth_of_field", "심도"],
@@ -159,20 +181,26 @@ export const DirectorPlusPromptStudio = {
     if (!target) return;
     node.properties = node.properties || {};
     if (!node.properties[PROP]) node.properties[PROP] = importFromGraph();
-    const data = node.properties[PROP] = Object.assign({ settings: {}, shots: [blankShot()], roles: {}, writer: {}, prompt: "", previous: "", brief: "", report: "", revise: "" }, node.properties[PROP] || {});
+    // Fill defaults into the stored object itself, so every window (and a job finishing after its
+    // window closed) works on the same object.
+    const data = node.properties[PROP];
+    for (const [k, v] of Object.entries({ settings: {}, shots: [blankShot()], roles: {}, writer: {}, prompt: "", previous: "", brief: "", report: "", revise: "" })) if (data[k] === undefined) data[k] = v;
     if (!Array.isArray(data.shots) || !data.shots.length) data.shots = [blankShot()];
     const save = () => { node.properties[PROP] = data; app.graph?.setDirtyCanvas(true, true); };
+    let view = null;
 
     const back = h("div", { class: "dp-ps-back" });
     const box = h("div", { class: "dp-ps" });
     back.append(box); document.body.append(back);
-    let chatUsed = false;
+    let chatUsed = false, timer = null;
     // The ComfyUI canvas keeps redrawing under this window; on some GPUs that tears the window's
     // raster tiles (a vertical seam that goes away on focus change). Pause it while we are open.
     const canvas = app.canvas, wasPaused = canvas ? !!canvas.pause_rendering : false;
     try { if (canvas) canvas.pause_rendering = true; } catch { /* ignore */ }
     const close = () => {
       try { if (canvas) canvas.pause_rendering = wasPaused; app.graph?.setDirtyCanvas(true, true); } catch { /* ignore */ }
+      if (node.__dpPsView === view) delete node.__dpPsView;
+      clearInterval(timer);
       save(); back.remove(); document.removeEventListener("keydown", onKey, true);
       if (chatUsed) getJSON("/director_plus/prompt_studio/chat_unload", { model: data.chat?.llm?.model, ollama_url: data.writer?.ollama_url || "" }).catch(() => {});  // free the card for video generation
     };
@@ -383,12 +411,12 @@ export const DirectorPlusPromptStudio = {
     const reviseBox = h("textarea", { placeholder: "고칠 부분만 적으세요. 예: 끝부분을 계속 빗자루로 쓸고 있게 바꿔줘." });
     reviseBox.value = data.revise || ""; reviseBox.oninput = () => { data.revise = reviseBox.value; save(); };
 
-    let busy = false, timer = null;
+    let busy = false;
     const buttons = [];
-    const lock = (on, label) => {
+    const lock = (on, label, t0 = Date.now()) => {
       busy = on; buttons.forEach(b => { b.disabled = on || b.dataset.off === "1"; });
       clearInterval(timer);
-      if (on) { const t0 = Date.now(); say(`${label}… 0초`); timer = setInterval(() => say(`${label}… ${Math.round((Date.now() - t0) / 1000)}초`), 1000); }
+      if (on) { const tick = () => say(`${label}… ${Math.round((Date.now() - t0) / 1000)}초`); tick(); timer = setInterval(tick, 1000); }
     };
     const payload = () => {
       const tw = node.widgets?.find(w => w.name === "timeline_data"), bw = node.widgets?.find(w => w.name === "builder_state");
@@ -398,23 +426,24 @@ export const DirectorPlusPromptStudio = {
         shots: { version: 1, shots, refs }, settings: data.settings, writer: { ...data.writer, model: modelSel.value } };
     };
     const showReport = () => { reportBox.textContent = [data.brief && "[브리프]\n" + data.brief, data.briefReport && "[샷 구성 점검]\n" + data.briefReport, data.report && "[작성 보고서]\n" + data.report].filter(Boolean).join("\n\n") || "아직 없습니다."; };
-    const act = (label, cls, fn) => { const b = h("button", { text: label, class: cls || "" }); b.onclick = async () => { if (busy) return; try { await fn(); } catch (e) { lock(false); say(e.message, true); } }; buttons.push(b); return b; };
+    const act = (label, cls, fn) => { const b = h("button", { text: label, class: cls || "" }); b.onclick = async () => { if (busy || JOBS.has(node)) return; try { await fn(); } catch (e) { say(e.message, true); } }; buttons.push(b); return b; };
+    const truncatedText = r => `작성 완료 (${r.seconds}초) — 단, 응답이 최대 응답 토큰(${r.max_tokens})에서 잘린 것 같습니다. 끝부분과 빈 칸이 N/A로 채워졌을 수 있으니 「LLM 고급 설정」에서 최대 응답 토큰을 올리고 다시 작성하세요.`;
 
     const briefBtn = act("브리프 확인", "", async () => {
-      lock(true, "브리프 만드는 중");
-      const r = await getJSON("/director_plus/prompt_studio/brief", payload());
-      lock(false); data.brief = r.brief; data.briefReport = r.report; save(); showReport(); reportDetails.open = true; say("브리프를 만들었습니다. 아래 「브리프 · 검사 결과」에서 확인하세요.");
+      const body = payload();
+      await runJob(node, { kind: "brief", label: "브리프 만드는 중" }, () => getJSON("/director_plus/prompt_studio/brief", body), (d, r) => {
+        d.brief = r.brief; d.briefReport = r.report;
+        return { text: "브리프를 만들었습니다. 아래 「브리프 · 검사 결과」에서 확인하세요.", openReport: true };
+      });
     });
     const writeBtn = act("프롬프트 작성", "primary", async () => {
       if (!modelSel.value) throw new Error("Ollama 모델을 고르세요.");
-      lock(true, "작성 중 (영상 레퍼런스가 있으면 분석 포함, 1~2분)");
-      const r = await getJSON("/director_plus/prompt_studio/write", payload());
-      lock(false);
-      if (data.prompt && data.prompt !== r.prompt) data.previous = data.prompt;
-      data.prompt = r.prompt; data.brief = r.brief; data.briefReport = r.brief_report; data.report = r.report; save();
-      result.value = data.prompt; showReport();
-      if (r.truncated) { reportDetails.open = true; say(`작성 완료 (${r.seconds}초) — 단, 응답이 최대 응답 토큰(${r.max_tokens})에서 잘린 것 같습니다. 끝부분과 빈 칸이 N/A로 채워졌을 수 있으니 「LLM 고급 설정」에서 최대 응답 토큰을 올리고 다시 작성하세요.`, true); }
-      else say(`작성 완료 (${r.seconds}초). 확인한 뒤 「적용」을 누르세요.`);
+      const body = payload();
+      await runJob(node, { kind: "write", label: "작성 중 (영상 레퍼런스가 있으면 분석 포함, 1~2분)" }, () => getJSON("/director_plus/prompt_studio/write", body), (d, r) => {
+        if (d.prompt && d.prompt !== r.prompt) d.previous = d.prompt;
+        d.prompt = r.prompt; d.brief = r.brief; d.briefReport = r.brief_report; d.report = r.report;
+        return r.truncated ? { text: truncatedText(r), err: true, openReport: true } : { text: `작성 완료 (${r.seconds}초). 확인한 뒤 「적용」을 누르세요.` };
+      });
     });
     const applyNow = async () => {
       const text = result.value.trim();
@@ -433,7 +462,7 @@ export const DirectorPlusPromptStudio = {
     data.chat = Object.assign({ messages: [], llm: {} }, data.chat || {});
     data.chat.llm = Object.assign({ model: "", temperature: 0.3, num_ctx: 16384, num_predict: -1, history_turns: 6, think: false }, data.chat.llm);
     if (!data.chat.llm.model) data.chat.llm.model = data.writer.model;
-    let chatBusy = false;
+    let chatPane = null;
     const openChat = () => {
       const chat = data.chat;
       const pane = h("div", { style: "position:absolute;inset:0;background:#0f1416;display:flex;flex-direction:column;z-index:5" });
@@ -471,35 +500,46 @@ export const DirectorPlusPromptStudio = {
         h("label", { class: "dp-ps-field" }, [h("span", { text: "대화 모델" }), modelPick]), setField("temperature", "temperature", { step: "0.05", min: "0", max: "2" }),
         setField("문맥 길이 (토큰)", "num_ctx", { step: "1024", min: "2048", max: "131072" }), setField("최대 응답 토큰 (-1 무제한)", "num_predict", { step: "1", min: "-1" }),
         setField("기억할 이전 대화 (턴)", "history_turns", { step: "1", min: "0", max: "30" }), h("label", { class: "dp-ps-field" }, [h("span", { text: "생각(think) 모드" }), h("div", { class: "chk" }, [think])])])]);
-      const closeChat = () => { pane.remove(); save(); };
+      let tick = null;
+      const pendingBubble = text => h("div", { style: "align-self:flex-end;background:#1f3a4a;border:1px solid #2c3a41;border-radius:10px;padding:10px 14px;white-space:pre-wrap;max-width:880px;opacity:.7", text });
+      const showRunning = job => {  // also used when the window is reopened during a turn
+        sendBtn.disabled = true; chatStatus.classList.remove("err"); clearInterval(tick);
+        const t = () => { chatStatus.textContent = `${job.label}… ${Math.round((Date.now() - job.t0) / 1000)}초`; }; t(); tick = setInterval(t, 1000);
+        if (job.kind === "chat" && job.text) { log.append(pendingBubble(job.text)); log.scrollTop = log.scrollHeight; }
+      };
+      const closeChat = () => { clearInterval(tick); pane.remove(); chatPane = null; save(); };
       const send = async () => {
-        const text = input.value.trim(); if (!text || chatBusy) return;
+        const text = input.value.trim(); if (!text || JOBS.has(node)) return;
         if (!llm.model) { chatStatus.textContent = "대화 모델을 고르세요."; chatStatus.classList.add("err"); settingsBox.open = true; return; }
-        chatBusy = true; sendBtn.disabled = true; chatStatus.classList.remove("err");
-        const t0 = Date.now(), tick = setInterval(() => { chatStatus.textContent = `생각 중… ${Math.round((Date.now() - t0) / 1000)}초`; }, 1000); chatStatus.textContent = "생각 중… 0초";
-        const pending = h("div", { style: "align-self:flex-end;background:#1f3a4a;border:1px solid #2c3a41;border-radius:10px;padding:10px 14px;white-space:pre-wrap;max-width:880px", text: text }); log.append(pending); log.scrollTop = log.scrollHeight;
-        try {
-          const p = payload();
-          const r = await getJSON("/director_plus/prompt_studio/chat", {
-            message: text, prompt: result.value, history: chat.messages.map(m => ({ role: m.role, content: m.role === "user" ? m.content : (m.explanation || m.content) })), llm,
-            ollama_url: data.writer.ollama_url || "",
-            context: { mode: p.director.mode, duration: p.director.duration, brief: data.brief || "",
-              references: pictures().slice(0, REF_MAX).map((_, i) => `<Picture ${i + 1}> role=${data.roles[i + 1] || "unset"}`),
-              scene: long ? { index: sceneIndex(), count: long.clips.length, context_frames: Number(long.context_length) || 0, previous_prompt: sceneIndex() > 0 ? long.clips[sceneIndex() - 1]?.prompt || "" : "" } : null } });
-          chat.messages.push({ role: "user", content: text }, { role: "assistant", content: r.reply, explanation: r.explanation, prompt: r.prompt });
-          if (chat.messages.length > 60) chat.messages.splice(0, chat.messages.length - 60);
-          chatUsed = true; input.value = ""; save(); renderLog();
-          chatStatus.textContent = r.prompt ? `답변 완료 (${r.seconds}초). 제안된 프롬프트를 확인하고 「결과 칸에 넣기」를 누르세요.` : `답변 완료 (${r.seconds}초).`;
-        } catch (e) { pending.remove(); chatStatus.textContent = e.message; chatStatus.classList.add("err"); }
-        clearInterval(tick); chatBusy = false; sendBtn.disabled = false;
+        const p = payload();
+        const body = {
+          message: text, prompt: result.value, history: chat.messages.map(m => ({ role: m.role, content: m.role === "user" ? m.content : (m.explanation || m.content) })), llm,
+          ollama_url: data.writer.ollama_url || "",
+          context: { mode: p.director.mode, duration: p.director.duration, brief: data.brief || "",
+            references: pictures().slice(0, REF_MAX).map((_, i) => `<Picture ${i + 1}> role=${data.roles[i + 1] || "unset"}`),
+            scene: long ? { index: sceneIndex(), count: long.clips.length, context_frames: Number(long.context_length) || 0, previous_prompt: sceneIndex() > 0 ? long.clips[sceneIndex() - 1]?.prompt || "" : "" } : null } };
+        input.value = ""; chatUsed = true;
+        await runJob(node, { kind: "chat", label: "생각 중", text }, () => getJSON("/director_plus/prompt_studio/chat", body), (d, r) => {
+          d.chat.messages.push({ role: "user", content: text }, { role: "assistant", content: r.reply, explanation: r.explanation, prompt: r.prompt });
+          if (d.chat.messages.length > 60) d.chat.messages.splice(0, d.chat.messages.length - 60);
+          return { text: r.prompt ? `답변 완료 (${r.seconds}초). 제안된 프롬프트를 확인하고 「결과 칸에 넣기」를 누르세요.` : `답변 완료 (${r.seconds}초).` };
+        });
+      };
+      chatPane = {
+        running: showRunning,
+        done: notice => {
+          clearInterval(tick); sendBtn.disabled = false; renderLog();
+          chatStatus.textContent = notice.text || ""; chatStatus.classList.toggle("err", !!notice.err);
+        },
       };
       sendBtn.onclick = send;
       input.addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } });
-      const clear = h("button", { class: "small", text: "대화 지우기", onclick: () => { if (chatBusy || !chat.messages.length || !window.confirm("이 대화를 지울까요?")) return; chat.messages = []; save(); renderLog(); } });
+      const clear = h("button", { class: "small", text: "대화 지우기", onclick: () => { if (JOBS.has(node) || !chat.messages.length || !window.confirm("이 대화를 지울까요?")) return; chat.messages = []; save(); renderLog(); } });
       pane.append(h("div", { class: "dp-ps-top" }, [h("h2", { text: "💬 LLM과 대화하며 다듬기" }), h("span", { class: "muted", text: long ? `장면 ${sceneIndex() + 1} · ${duration()}초` : `${duration()}초` }), h("span", { class: "grow" }), clear, h("button", { text: "← 돌아가기", onclick: closeChat })]),
         settingsBox, log,
         h("div", { style: "padding:10px 18px 14px;border-top:1px solid #243035;display:flex;flex-direction:column;gap:8px" }, [chatStatus, h("div", { class: "row", style: "align-items:stretch" }, [input, h("div", { style: "flex:0 0 auto;display:flex" }, [sendBtn])])]));
       box.append(pane); renderLog(); input.focus();
+      if (JOBS.has(node)) showRunning(JOBS.get(node));
     };
     const chatBtn = act("LLM과 대화하며 다듬기", "", async () => {
       if (!CATALOG.ollama) throw new Error("Ollama에 연결하지 못했습니다. Ollama를 켜고 창을 다시 여세요.");
@@ -508,13 +548,13 @@ export const DirectorPlusPromptStudio = {
     const reviseBtn = act("부분 수정", "", async () => {
       if (!result.value.trim()) throw new Error("수정할 프롬프트가 없습니다.");
       if (!reviseBox.value.trim()) throw new Error("고칠 부분을 적으세요.");
-      lock(true, "부분 수정 중");
-      const r = await getJSON("/director_plus/prompt_studio/revise", { prompt: result.value, request: reviseBox.value, writer: { ...data.writer, model: modelSel.value } });
-      lock(false);
-      data.report = r.report; showReport();
-      if (r.applied) { data.previous = result.value; data.prompt = r.prompt; result.value = r.prompt; data.revise = ""; reviseBox.value = ""; say("수정했습니다. 바뀐 내용은 「브리프 · 검사 결과」의 보고서에서 볼 수 있습니다."); }
-      else say("수정하지 않았습니다. 보고서를 확인하세요.", true);
-      save();
+      const before = result.value, body = { prompt: before, request: reviseBox.value, writer: { ...data.writer, model: modelSel.value } };
+      await runJob(node, { kind: "revise", label: "부분 수정 중" }, () => getJSON("/director_plus/prompt_studio/revise", body), (d, r) => {
+        d.report = r.report;
+        if (!r.applied) return { text: "수정하지 않았습니다. 보고서를 확인하세요.", err: true };
+        d.previous = before; d.prompt = r.prompt; d.revise = "";
+        return { text: "수정했습니다. 바뀐 내용은 「브리프 · 검사 결과」의 보고서에서 볼 수 있습니다." };
+      });
     });
     const prevBtn = act("이전 프롬프트", "", async () => {
       if (!data.previous) throw new Error("이전 프롬프트가 없습니다.");
@@ -536,6 +576,29 @@ export const DirectorPlusPromptStudio = {
     );
     if (!CATALOG.ollama) say("Ollama에 연결하지 못했습니다. Ollama를 켜고 창을 다시 여세요.", true);
     right.append(panel);
+
+    view = {
+      started: job => { lock(true, job.label, job.t0); chatPane?.running(job); },
+      done: notice => {
+        lock(false);
+        result.value = data.prompt || ""; reviseBox.value = data.revise || ""; showReport();
+        if (notice.openReport) reportDetails.open = true;
+        say(notice.text, notice.err);
+        if (notice.kind === "chat") chatUsed = true;
+        chatPane?.done(notice);
+      },
+    };
+    node.__dpPsView = view;
+    const running = JOBS.get(node);
+    if (running) {  // reopened while a job started from an earlier window is still running
+      lock(true, running.label, running.t0);
+      if (running.kind === "chat") openChat();
+    } else if (data.notice) {  // a job finished while the window was closed
+      const n = data.notice; delete data.notice; save();
+      if (n.openReport) reportDetails.open = true;
+      if (n.kind === "chat") { chatUsed = true; say(n.err ? n.text : "창을 닫은 동안 대화 답변이 도착했습니다. 「LLM과 대화하며 다듬기」에서 확인하세요.", n.err); }
+      else say(n.text, n.err);
+    }
   },
 };
 
