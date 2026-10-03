@@ -49,7 +49,7 @@ PyTorch/torchaudio를 다른 버전으로 교체하지 말고 ComfyUI 배포본�
 
 ## 노드
 
-- **MiniMax H3 Director Plus**: 레퍼런스·장면 타임라인·프롬프트(단일 편집기 + Prompt Forge)·시드 관리
+- **MiniMax H3 Director Plus**: 레퍼런스·장면 타임라인·프롬프트(단일 편집기 + 프롬프트 작성 창)·시드 관리
 - **Director Plus · Generate**: Motion Context와 HyperFlow SIGMAS로 장면 생성
 - **Director Plus · Video Output**: 영상 저장 및 미리보기
 
@@ -69,13 +69,15 @@ PyTorch/torchaudio를 다른 버전으로 교체하지 말고 ComfyUI 배포본�
 
 캐시 위치: `ComfyUI/user/director_plus/cache` (원본 Extender 캐시와 분리)
 
-### Prompt Forge (선택)
+### 프롬프트 작성 창 (PromptDirector)
 
-프롬프트 도구 모음의 **Prompt Forge**로 아이디어 한두 문장에서 H3 프롬프트 초안을 LLM으로 작성할 수 있습니다. 초안을 확인한 뒤 **Apply to node**를 눌러야 프롬프트에 들어가며, 최근 3개 초안은 노드와 함께 워크플로우에 저장됩니다.
+Director 노드 프롬프트 도구 모음과 긴 영상 장면 타임라인의 **✍ 프롬프트 작성** 버튼으로 엽니다. [ComfyUI-MinimaxH3-PromptDirector](https://github.com/Bokuwako/ComfyUI-MinimaxH3-PromptDirector)와 Ollama가 필요합니다. Writer·Freeze·Shot Builder 노드를 연결하지 않아도 됩니다.
 
-- 모델: `ComfyUI/models/llm`의 로컬 모델, Ollama(기본 `127.0.0.1:11434`), 또는 OpenAI 호환 서버. 서버 주소는 **Settings → Director Plus → H3 Forge**에서 지정합니다.
-- 생성이 끝나면 LLM을 메모리에서 내린 뒤 영상 생성을 시작하므로 LLM과 영상 모델이 VRAM에 함께 올라가지 않습니다.
-- 원본 DaSiWa의 Prompt Forge와는 API 경로·설정·저장 키가 분리되어 함께 설치해도 서로 간섭하지 않습니다.
+- 구성은 MMH3 Studio의 디렉터 탭과 같습니다: 장면 설정(스타일·장르·렌즈·심도·조명·대사·환경음·음악·금지/필수 사항), Director 이미지별 레퍼런스 역할, 샷 카드(카메라·샷 전환, 몸 방향·시선, 행위, 대사), Ollama 모델·고급 설정, 브리프 확인, 프롬프트 작성, Prompt Freeze 부분 수정·이전 프롬프트.
+- Director의 모드·길이·레퍼런스를 그대로 읽습니다. 영상 레퍼런스 분석과 V+A 소리 규칙(위 PromptDirector 연동)도 적용됩니다.
+- 작성은 ComfyUI 대기열 밖에서 실행되며, 시작할 때 ComfyUI 모델을 내리고 끝나면 Ollama 모델도 내립니다. 영상 생성 중에는 작성할 수 없습니다.
+- 결과를 확인한 뒤 **적용**을 누르면 단일 영상은 Director 프롬프트에, 긴 영상은 고른 장면 카드(기본: NEXT, 외부 프롬프트 OFF)에 들어갑니다.
+- 처음 열 때 워크플로우의 Shot Settings·Shot Builder·Writer 노드 값을 가져옵니다. 창의 내용은 노드에 저장됩니다.
 
 ### ComfyUI-MinimaxH3-PromptDirector 연동
 

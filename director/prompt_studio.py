@@ -171,7 +171,7 @@ def register_routes(server):
         async with _busy:
             try:
                 body = await request.json()
-                if needs_gpu:  # the LLM gets the card to itself, as Prompt Forge did
+                if needs_gpu:  # the LLM gets the card to itself
                     comfy.model_management.unload_all_models()
                     comfy.model_management.soft_empty_cache()
                 return web.json_response({"ok": True, **(await asyncio.to_thread(job, body))})

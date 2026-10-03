@@ -487,11 +487,6 @@ function install(node) {
       studioButton.textContent = "✍ 프롬프트 작성"; studioButton.title = "PromptDirector로 프롬프트를 작성합니다 (장면 설정·샷 구성·부분 수정)";
       studioButton.onclick = () => window.DirectorPlusPromptStudio.open(node); helpers.append(studioButton);
     }
-    if (window.DirectorPlusH3Forge && mode() !== "Image Inpaint") {
-      const forgeButton = document.createElement("button"); forgeButton.className = "dp-h3-forge-btn";
-      forgeButton.textContent = "Prompt Forge"; forgeButton.title = "Write a prompt with a local LLM";
-      forgeButton.onclick = () => window.DirectorPlusH3Forge.open(node); helpers.append(forgeButton);
-    }
     panel.append(helpers, simplePrompt);
     addCharCounter(panel);
   }
@@ -901,12 +896,9 @@ function install(node) {
     selectedId = null;
     resetBuilderState();
     if (promptWidget) { promptWidget.value = ""; promptWidget.callback?.(promptWidget.value); }
-    // Clearing the Director also removes Forge drafts saved with this node.
-    if (window.DirectorPlusH3Forge?.clearHistory) window.DirectorPlusH3Forge.clearHistory(node);
-    else if (node.properties) delete node.properties.directorPlusH3ForgeHistory;
     mutate(s => { s.items = []; s.prompt_blocks = []; (s.refmods || []).forEach(row => { row.enabled = false; }); });
     updateRefModActiveBadge();
-    setStatus("All media, prompts and Forge drafts cleared.");
+    setStatus("All media and prompts cleared.");
   };
 
   // --- Reference-pack save/load ---
@@ -1240,7 +1232,7 @@ function install(node) {
     const controlGroup = () => { const group = document.createElement("span"); group.className = "dp-h3-actions"; group.style.cssText = "gap:4px;flex-wrap:wrap;white-space:nowrap;max-width:100%"; return group; };
     const modesSide = controlGroup(); const modeLabel = document.createElement("span"); modeLabel.textContent = "Model Mode:"; modeLabel.style.cssText = "color:#9fb3c2;font-weight:600"; modesSide.append(modeLabel); ["T2VA", "I2VA", "FL2VA", "L2VA", "REF2VA", "Image Inpaint"].forEach(value => { const button = document.createElement("button"); button.textContent = value; button.classList.toggle("active", mode() === value); button.title = value === "Image Inpaint" ? "One image reference; output exactly one frame through Get Image from Batch." : value; button.onclick = () => { if (modeWidget) { modeWidget.value = value; modeWidget.callback?.(value); } if ((selectedLane === "audio" || selectedLane === "video") && value !== "REF2VA") selectedLane = "image"; render(); }; modesSide.append(button); });
     const ioSide = controlGroup(); ioSide.style.cssText += ";padding-left:8px;border-left:1px solid #344452";
-    const actionsSide = controlGroup(); actionsSide.style.cssText += ";padding-left:8px;border-left:1px solid #344452"; const hasContent = state.items.length || state.prompt_blocks?.length || hasBuilderContent() || String(promptWidget?.value || "").trim() || (node.properties?.directorPlusH3ForgeHistory?.length > 0); if (selected) { if (!isLockedSlot(selected)) { const removeButton = document.createElement("button"); removeButton.className = "dp-h3-remove-btn"; removeButton.textContent = "Remove"; removeButton.title = `Remove selected ${selected.type}`; removeButton.onclick = () => remove(selected.id); actionsSide.append(removeButton); } else { setStatus(`${mediaReferenceName(selected.type)} ${selected.slot + 1} is locked in L2VA mode`, true); } } if (hasContent) { const clearButton = document.createElement("button"); clearButton.className = "dp-h3-clear-btn"; clearButton.textContent = "Clear"; clearButton.title = "Remove all media, prompts and Forge drafts"; clearButton.onclick = clearAll; actionsSide.append(clearButton); } else { const clearButton = document.createElement("button"); clearButton.className = "dp-h3-clear-btn dp-h3-clear-btn-empty"; clearButton.textContent = "Clear"; clearButton.title = "Nothing to clear yet"; clearButton.onclick = () => setStatus("Nothing to clear."); actionsSide.append(clearButton); }
+    const actionsSide = controlGroup(); actionsSide.style.cssText += ";padding-left:8px;border-left:1px solid #344452"; const hasContent = state.items.length || state.prompt_blocks?.length || hasBuilderContent() || String(promptWidget?.value || "").trim(); if (selected) { if (!isLockedSlot(selected)) { const removeButton = document.createElement("button"); removeButton.className = "dp-h3-remove-btn"; removeButton.textContent = "Remove"; removeButton.title = `Remove selected ${selected.type}`; removeButton.onclick = () => remove(selected.id); actionsSide.append(removeButton); } else { setStatus(`${mediaReferenceName(selected.type)} ${selected.slot + 1} is locked in L2VA mode`, true); } } if (hasContent) { const clearButton = document.createElement("button"); clearButton.className = "dp-h3-clear-btn"; clearButton.textContent = "Clear"; clearButton.title = "Remove all media and prompts"; clearButton.onclick = clearAll; actionsSide.append(clearButton); } else { const clearButton = document.createElement("button"); clearButton.className = "dp-h3-clear-btn dp-h3-clear-btn-empty"; clearButton.textContent = "Clear"; clearButton.title = "Nothing to clear yet"; clearButton.onclick = () => setStatus("Nothing to clear."); actionsSide.append(clearButton); }
     const spacer = document.createElement("span"); spacer.style.flex = "1";
     const docsButton = document.createElement("button"); docsButton.className = "dp-h3-docs"; docsButton.textContent = "?"; docsButton.title = "Open MiniMax H3 Director documentation on GitHub"; docsButton.onclick = () => window.open(REPOSITORY_URL, "_blank", "noopener,noreferrer");
     topRow.append(modesSide, spacer, ioSide, actionsSide, docsButton); modeGroup.append(topRow);
@@ -1455,23 +1447,6 @@ function install(node) {
   node.__directorPlusH3RestorePersistedState = () => requestAnimationFrame(restorePersistedState);
   node.__directorPlusH3HasExternalPrompt = hasExternalPrompt;
   node.__directorPlusH3State = () => state; node.__directorPlusH3Render = render;
-  // H3 Forge (js/minimax_h3_forge.js) reads the timeline from here and writes
-  // its result back through apply(), so the builder fields, the Simple box and
-  // the hidden widgets all update the same way a typed edit does.
-  node.__directorPlusH3Forge = {
-    mode, promptStyle, setStatus,
-    duration: () => Number(node.widgets?.find(w => w.name === "duration")?.value) || null,
-    items: () => activeItems().filter(item => !item._audioEcho && !isLockedSlot(item)).map(item => ({ ...item, lane: laneForItem(item) })),
-    apply: (result) => {
-      if (result.mode === "REF2VA") builderState.ref = { ...(builderState.ref || {}), ...result.fields.ref };
-      else Object.assign(builderState, result.fields);
-      builderState.simple_prompt = result.simple_prompt;
-      builderState.prompt_mode = "simple";
-      emit(); render();
-      // The char counter only recounts on input; nudge it so it shows the new prompt.
-      requestAnimationFrame(() => timeline.querySelectorAll(".dp-h3-prompt-panel").forEach(p => p.dispatchEvent(new Event("input", { bubbles: true }))));
-    },
-  };
   // Prompt Studio (web/director_plus_prompt_studio.js) reads the Director from here and puts a
   // finished prompt into the Simple box, the same way a typed edit does.
   node.__directorPlusPromptTarget = {

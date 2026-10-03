@@ -93,23 +93,14 @@
     {
       "file": "web/enhanced_video_combine_preview.js",
       "upstream_sha256": "70ed5daef9adb17576f91943bcdfce3c0d7c6d764f4cde36a2026a5751d33651"
-    },
-    {
-      "file": "director/h3_forge.py",
-      "upstream_sha256": "7abd3e7de4eb108235b939162b771da835d61aac7961b46e3912c1895c9440fa"
-    },
-    {
-      "file": "director/nodes_llm.py",
-      "upstream_sha256": "c656bf7139419117afc4da28d88dfa33616981090c1a6c38be2f77ab9558afb9"
-    },
-    {
-      "file": "web/minimax_h3_forge.js",
-      "upstream_sha256": "d9425ee61b1a80997ff1147126a43a5a810f50a44432ad0befe97c43c80a8466"
-    },
-    {
-      "file": "data/h3_forge.json",
-      "upstream_sha256": "6c3e8bde41dc13e73adfd2c92973e5c824b1d8b4c91dd23069c22d747049132d"
     }
   ],
-  "dasiwa_version": "0.4.57"
+  "dasiwa_version": "0.4.57",
+  "removed": [
+    "data/h3_forge.json",
+    "director/h3_forge.py",
+    "director/nodes_llm.py",
+    "web/minimax_h3_forge.js",
+    "(2026-10-03: DaSiWa Prompt Forge removed; replaced by Director Plus Prompt Studio)"
+  ]
 }

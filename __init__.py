@@ -3,7 +3,6 @@ from .engine.director_long import DirectorPlusGenerate, DirectorPlusVideoOutput
 from .engine.director_lbh import DirectorPlusConditioningMatchLatent
 from .engine import director_project
 from .director import refmod_library
-from .director import h3_forge  # registers /director_plus/dasiwa/h3/forge routes
 from . import prompt_director_compat  # lets PromptDirector FOLLOW_DIRECTOR see DirectorPlusTimeline
 from .director import prompt_studio  # the Director's PromptDirector writing window
 from server import PromptServer
