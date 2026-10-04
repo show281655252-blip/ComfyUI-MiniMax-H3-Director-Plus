@@ -1706,7 +1706,7 @@
         "id": "d57dbb6a-bbb1-4db7-98ae-6c9d7a65d3e8",
         "version": 1,
         "state": {
-          "lastGroupId": 234,
+          "lastGroupId": 236,
           "lastNodeId": 2956,
           "lastLinkId": 6552,
           "lastRerouteId": 0
@@ -1726,7 +1726,7 @@
         "outputNode": {
           "id": -20,
           "bounding": [
-            14100,
+            15880,
             0,
             128,
             228
@@ -2363,8 +2363,8 @@
             "id": 2669,
             "type": "VAEDecodeAudio",
             "pos": [
-              7111.0767578125,
-              2946
+              8800,
+              2440
             ],
             "size": [
               330,
@@ -2640,8 +2640,8 @@
             "id": 2671,
             "type": "VAEDecode",
             "pos": [
-              6655,
-              2946
+              8800,
+              2300
             ],
             "size": [
               330,
@@ -2869,8 +2869,8 @@
             "id": 2630,
             "type": "VAEDecode",
             "pos": [
-              6640,
-              746
+              8800,
+              100
             ],
             "size": [
               330,
@@ -2923,8 +2923,8 @@
             "id": 2631,
             "type": "VAEDecodeAudio",
             "pos": [
-              7090.108984375,
-              746
+              8800,
+              240
             ],
             "size": [
               330,
@@ -2977,7 +2977,7 @@
             "id": 2675,
             "type": "ComfySwitchNode",
             "pos": [
-              13025,
+              14805,
               100
             ],
             "size": [
@@ -5466,7 +5466,7 @@
             "id": 2677,
             "type": "ComfySwitchNode",
             "pos": [
-              9440,
+              11220,
               100
             ],
             "size": [
@@ -6034,7 +6034,7 @@
             "id": 2919,
             "type": "MiniMaxH3SigmaShift",
             "pos": [
-              7840,
+              9620,
               3450
             ],
             "size": [
@@ -6111,7 +6111,7 @@
             "id": 2920,
             "type": "BasicScheduler",
             "pos": [
-              8280,
+              10060,
               3450
             ],
             "size": [
@@ -6197,7 +6197,7 @@
             "id": 2921,
             "type": "LTXVSeparateAVLatent",
             "pos": [
-              7840,
+              9620,
               100
             ],
             "size": [
@@ -6263,7 +6263,7 @@
             "id": 2922,
             "type": "MiniMaxH3LatentUpscale",
             "pos": [
-              8240,
+              10020,
               100
             ],
             "size": [
@@ -6330,7 +6330,7 @@
             "id": 2923,
             "type": "LTXVConcatAVLatent",
             "pos": [
-              8640,
+              10420,
               100
             ],
             "size": [
@@ -6394,7 +6394,7 @@
             "id": 2924,
             "type": "DirectorPlusConditioningMatchLatent",
             "pos": [
-              7840,
+              9620,
               260
             ],
             "size": [
@@ -6460,7 +6460,7 @@
             "id": 2925,
             "type": "BasicGuider",
             "pos": [
-              8240,
+              10020,
               260
             ],
             "size": [
@@ -6514,7 +6514,7 @@
             "id": 2926,
             "type": "SamplerCustomAdvanced",
             "pos": [
-              8640,
+              10420,
               260
             ],
             "size": [
@@ -6592,7 +6592,7 @@
             "id": 2927,
             "type": "LTXVSeparateAVLatent",
             "pos": [
-              7840,
+              9620,
               640
             ],
             "size": [
@@ -6656,7 +6656,7 @@
             "id": 2928,
             "type": "VAEDecodeAudio",
             "pos": [
-              8240,
+              10020,
               640
             ],
             "size": [
@@ -6710,7 +6710,7 @@
             "id": 2929,
             "type": "ComfySwitchNode",
             "pos": [
-              8640,
+              10420,
               640
             ],
             "size": [
@@ -6781,7 +6781,7 @@
             "id": 2930,
             "type": "LTXVSeparateAVLatent",
             "pos": [
-              7840,
+              9620,
               2300
             ],
             "size": [
@@ -6847,7 +6847,7 @@
             "id": 2931,
             "type": "MiniMaxH3LatentUpscale",
             "pos": [
-              8240,
+              10020,
               2300
             ],
             "size": [
@@ -6914,7 +6914,7 @@
             "id": 2932,
             "type": "LTXVConcatAVLatent",
             "pos": [
-              8640,
+              10420,
               2300
             ],
             "size": [
@@ -6978,7 +6978,7 @@
             "id": 2933,
             "type": "DirectorPlusConditioningMatchLatent",
             "pos": [
-              7840,
+              9620,
               2460
             ],
             "size": [
@@ -7044,7 +7044,7 @@
             "id": 2934,
             "type": "BasicGuider",
             "pos": [
-              8240,
+              10020,
               2460
             ],
             "size": [
@@ -7098,7 +7098,7 @@
             "id": 2935,
             "type": "SamplerCustomAdvanced",
             "pos": [
-              8640,
+              10420,
               2460
             ],
             "size": [
@@ -7176,7 +7176,7 @@
             "id": 2936,
             "type": "LTXVSeparateAVLatent",
             "pos": [
-              7840,
+              9620,
               2840
             ],
             "size": [
@@ -7240,7 +7240,7 @@
             "id": 2937,
             "type": "VAEDecodeAudio",
             "pos": [
-              8240,
+              10020,
               2840
             ],
             "size": [
@@ -7294,7 +7294,7 @@
             "id": 2938,
             "type": "ComfySwitchNode",
             "pos": [
-              8640,
+              10420,
               2840
             ],
             "size": [
@@ -7643,7 +7643,7 @@
             "id": 2946,
             "type": "ComfySwitchNode",
             "pos": [
-              7840,
+              9620,
               3600
             ],
             "size": [
@@ -7714,7 +7714,7 @@
             "id": 2947,
             "type": "Reroute",
             "pos": [
-              13519.899369855966,
+              15299.899369855966,
               60.78647440843629
             ],
             "size": [
@@ -7749,8 +7749,8 @@
             "id": 2951,
             "type": "ComfySwitchNode",
             "pos": [
-              6240,
-              3916
+              7600,
+              2300
             ],
             "size": [
               345,
@@ -7811,8 +7811,8 @@
             "id": 2952,
             "type": "DirectorPlusMotionLab",
             "pos": [
-              6240,
-              4046
+              8000,
+              2300
             ],
             "size": [
               360,
@@ -7916,8 +7916,8 @@
             "id": 2953,
             "type": "DirectorPlusFaceRefine",
             "pos": [
-              6640,
-              4046
+              8400,
+              2300
             ],
             "size": [
               360,
@@ -8007,8 +8007,8 @@
             "id": 2954,
             "type": "ComfySwitchNode",
             "pos": [
-              6240,
-              4436
+              7600,
+              100
             ],
             "size": [
               345,
@@ -8069,8 +8069,8 @@
             "id": 2955,
             "type": "DirectorPlusMotionLab",
             "pos": [
-              6240,
-              4566
+              8000,
+              100
             ],
             "size": [
               360,
@@ -8174,8 +8174,8 @@
             "id": 2956,
             "type": "DirectorPlusFaceRefine",
             "pos": [
-              6640,
-              4566
+              8400,
+              100
             ],
             "size": [
               360,
@@ -8373,7 +8373,7 @@
           },
           {
             "id": 205,
-            "title": "07A · FL2VA — LBH 보정 / 디코딩",
+            "title": "07A · FL2VA — LBH 보정",
             "bounding": [
               6200,
               0,
@@ -8385,7 +8385,7 @@
           },
           {
             "id": 206,
-            "title": "07B · Ref2VA — LBH 보정 / 디코딩",
+            "title": "07B · Ref2VA — LBH 보정",
             "bounding": [
               6200,
               2200,
@@ -8399,7 +8399,7 @@
             "id": 233,
             "title": "08A · FL2VA — 오디오 재생성",
             "bounding": [
-              7800,
+              9580,
               0,
               1230,
               800
@@ -8411,7 +8411,7 @@
             "id": 234,
             "title": "08B · Ref2VA — 오디오 재생성",
             "bounding": [
-              7800,
+              9580,
               2200,
               1230,
               800
@@ -8423,7 +8423,7 @@
             "id": 232,
             "title": "08C · 오디오 재생성 공통 — LoRA 적용 전 모델 / 스케줄",
             "bounding": [
-              7800,
+              9580,
               3350,
               890,
               450
@@ -8435,7 +8435,7 @@
             "id": 208,
             "title": "09 · 단일 영상 결과 선택",
             "bounding": [
-              9400,
+              11180,
               0,
               1230.753515625,
               988
@@ -8447,12 +8447,36 @@
             "id": 211,
             "title": "10 · 최종 오디오",
             "bounding": [
-              13000,
+              14780,
               0,
               380,
               220
             ],
             "color": "#79604f",
+            "flags": {}
+          },
+          {
+            "id": 235,
+            "title": "07A-2 · FL2VA — Motion Lab / 얼굴 다듬기 (후처리) / 디코딩",
+            "bounding": [
+              7560,
+              0,
+              1980,
+              560
+            ],
+            "color": "#416e88",
+            "flags": {}
+          },
+          {
+            "id": 236,
+            "title": "07B-2 · Ref2VA — Motion Lab / 얼굴 다듬기 (후처리) / 디코딩",
+            "bounding": [
+              7560,
+              2200,
+              1980,
+              560
+            ],
+            "color": "#695889",
             "flags": {}
           }
         ],
