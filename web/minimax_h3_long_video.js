@@ -17,11 +17,11 @@ function element(tag, text, parent) {
 
 // New scenes use the external prompt only when one is actually linked to the node;
 // otherwise they start with it OFF and keep their own (or the synced main) prompt.
-// Motion Lab and audio regen start OFF on new scenes and are switched on per card; older scenes
+// Motion Lab, audio regen and face refine start OFF on new scenes and are switched on per card; older scenes
 // without the fields still count as ON.
 function newClip(useExternal = true) {
 
-  return { id: crypto.randomUUID(), name: "", prompt: "", use_external_prompt: useExternal, duration: 5, seed: Math.floor(Math.random() * 1e12), seed_mode: "fixed", validated: false, loras: [], derope: false, audio_regen: false };
+  return { id: crypto.randomUUID(), name: "", prompt: "", use_external_prompt: useExternal, duration: 5, seed: Math.floor(Math.random() * 1e12), seed_mode: "fixed", validated: false, loras: [], derope: false, audio_regen: false, face_refine: false };
 
 }
 
@@ -229,7 +229,7 @@ export function renderLongVideo(node, state, emit) {
 
   };
 
-  // A Settings switch (audio regen / Motion Lab) changed: generated scenes that are not approved were
+  // A Settings switch (audio regen / Motion Lab / face refine) changed: generated scenes that are not approved were
   // made with the old value, so reset them. Approved scenes are kept.
   rt.invalidateUnapproved = async () => {
     const long = rt.state?.long_video;
@@ -821,7 +821,7 @@ export function renderLongVideo(node, state, emit) {
       save(); refresh();
     };
 
-    // Per-scene switches for Settings features (Motion Lab, audio regen): they apply only while the
+    // Per-scene switches for Settings features (Motion Lab, audio regen, face refine): they apply only while the
     // Settings toggle is on. A scene without the field counts as ON, so turning the Settings toggle
     // on keeps covering every scene; while it is off the row is dimmed.
     const sceneSwitch = (key, label, master, masterName, help) => {
@@ -845,6 +845,8 @@ export function renderLongVideo(node, state, emit) {
       "ON: 이 장면의 소리를 30스텝으로 다시 만들어 잡음을 줄입니다(장면당 약 1~2분). OFF: 1차 생성 소리를 그대로 씁니다.");
     sceneSwitch("derope", "🌀 모션랩 (빠른 동작 보정)", "derope_enabled", "🌀 Motion Lab (de-rope)",
       "ON: 이 장면의 빠른 동작 구간을 늘려 다시 생성해 뭉개짐을 줄입니다(시간 약 3배). OFF: 이 장면은 그대로 생성합니다.");
+    sceneSwitch("face_refine", "🙂 얼굴 다듬기", "face_refine_enabled", "🙂 얼굴 다듬기",
+      "ON: 이 장면의 얼굴을 찾아 크게 잘라 다시 그린 뒤 붙입니다. 얼굴이 작거나 흐트러진 장면에 효과가 크고, 이미 깔끔한 얼굴은 조금 부드러워질 수 있습니다(장면당 샘플링 한 번 추가). 얼굴이 안 보이는 장면은 그대로 둡니다. OFF: 그대로 생성합니다.");
 
     const foot = element("div", null, card); foot.className = "dl-card-row";
     const openGroup = groups.find(g => i >= g.a && i <= g.b && isOpen(g));
@@ -1080,7 +1082,7 @@ function directors() { return (app.graph?._nodes || []).filter(n => n.comfyClass
 
 // The Settings toggle (or an unlinked widget of the same name on Director · 긴 영상) is the master
 // switch for a per-scene toggle. true / false, or null when no such widget is on the canvas.
-const MASTER_SETTINGS = ["derope_enabled", "audio_regen_enabled"];
+const MASTER_SETTINGS = ["derope_enabled", "audio_regen_enabled", "face_refine_enabled"];
 function settingValue(name) {
   for (const target of app.graph?._nodes || []) {
     const widget = target.widgets?.find(w => w.name === name);

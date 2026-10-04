@@ -2108,6 +2108,7 @@ def _parse_clips_json(value: str, generation_mode="ref2va", motion_context=True)
                 # Director Motion Lab per scene: applies only while the Settings toggle is on.
                 "derope": raw.get("derope") is not False,
                 "audio_regen": raw.get("audio_regen") is not False,
+                "face_refine": raw.get("face_refine") is not False,
                 "local_refs": _normalize_local_refs(raw.get("local_refs")),
                 "first_frame": _normalize_ref_descriptor(raw.get("first_frame")),
                 "last_frame": _normalize_ref_descriptor(raw.get("last_frame")),
@@ -5346,6 +5347,18 @@ class MiniMaxH3Extender:
                     audio_regen["config"], _sample_h3, context_decode_cache)
                 del regen_model
             context_decode_cache.clear()
+
+            face_refine = kwargs.get("director_face_refine")
+            if face_refine and cfg.get("face_refine", True) is False:
+                print(f"H3 Extender: Clip {i + 1} face refine skipped (off on the scene card)")
+            elif face_refine:
+                from . import director_face_refine
+                _send_extender_progress(owner, i, len(clips), "sampling",
+                                        f"Face refine clip {i + 1}/{len(clips)}")
+                sampled, face_report = director_face_refine.refine(
+                    clip_model, base_positive, resolved_width, resolved_height, sampled, int(steps),
+                    cfg["seed"], vae, face_refine, _sample_h3)
+                print(f"H3 Extender: Clip {i + 1} face refine: {face_report}")
 
             result = disk_join.join(
                 samples=sampled,

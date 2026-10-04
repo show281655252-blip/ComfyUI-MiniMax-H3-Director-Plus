@@ -36,6 +36,7 @@ from .extender import MiniMaxH3Extender, _manual_effective_resolution
 from . import director_lbh
 from . import director_audio_regen
 from . import director_derope
+from . import director_face_refine
 
 from .motion_context_disk import MiniMaxH3MotionContextDiskFinalDecode, _find_ffmpeg, _comfy_media_item, _video_output_from_path, normalize_full_batch_export_profile
 
@@ -266,6 +267,7 @@ class DirectorPlusGenerate:
             "audio_regen_enabled": ("BOOLEAN", {"default": False, "tooltip": "Re-sample each scene's audio with the base model (30 steps, denoise 0.5) on a half-size video."}),
             "audio_regen_model": ("MODEL", {"tooltip": "Base model before HyperFlow/turbo LoRAs, with the same sigma shift."}),
             "derope_enabled": ("BOOLEAN", {"default": False, "tooltip": "Motion Lab de-rope (ComfyUI-MAINodes): regenerate each scene's fast-motion spans slowed down, then restore real time. Much slower per scene."}),
+            "face_refine_enabled": ("BOOLEAN", {"default": False, "tooltip": "Face refine (ComfyUI-H3-FaceRefine): track the face, redraw it on a larger canvas at a low denoise and paste it back, for scenes whose scene card has it on. Adds about one sampling pass per scene."}),
         }, "hidden": {"prompt": "PROMPT", "unique_id": "UNIQUE_ID"}}
 
     RETURN_TYPES = ("H3_MOTION_DISK_CACHE",)
@@ -283,7 +285,7 @@ class DirectorPlusGenerate:
     def generate(self, guide, model, clip, vae, audio_vae, sigmas, sampler_name,
                  lbh_enabled=False, lbh_scale=1.5, lbh_model_name="minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors",
                  lbh_full_first_pass=False, audio_regen_enabled=False, audio_regen_model=None,
-                 derope_enabled=False, prompt=None, unique_id=None):
+                 derope_enabled=False, face_refine_enabled=False, prompt=None, unique_id=None):
 
         if guide.get("minimax_ref_items"):
 
@@ -305,6 +307,9 @@ class DirectorPlusGenerate:
         if derope:
             director_derope.check_installed()
         guide["long_video"]["derope"] = derope
+        face_refine = director_face_refine.settings(face_refine_enabled)
+        if face_refine:
+            director_face_refine.check_installed()
         if lbh and len(sigmas) < 6:
             raise ValueError("Director LBH needs at least 5 sampling steps (base + final 4-step refine).")
         guide["long_video"]["lbh"] = lbh
@@ -359,6 +364,7 @@ class DirectorPlusGenerate:
             unique_id=owner, sigmas=sigmas, initial_context=initial_context, director_lbh=lbh,
             director_audio_regen={"config": audio_regen, "model": audio_regen_model} if audio_regen else None,
             director_derope=derope,
+            director_face_refine=face_refine,
             director_export_profile=output_export_profile(prompt, unique_id), **media,
 
         )
