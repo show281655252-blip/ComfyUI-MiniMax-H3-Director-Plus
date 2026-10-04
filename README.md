@@ -44,7 +44,6 @@ PyTorch/torchaudio를 다른 버전으로 바꾸지 말고 ComfyUI 배포본과 
 
 | 기능 | 필요한 것 |
 |---|---|
-| 터보(HyperFlow) | [jalberty2018/ComfyUI-Hyperflow](https://github.com/jalberty2018/ComfyUI-Hyperflow) + 가중치 [drbaph/Hyperflow-Comfyui](https://huggingface.co/drbaph/Hyperflow-Comfyui) → `models/hyperflow/`. 터보 LoRA를 대신 쓸 수도 있습니다. |
 | LBH 업스케일 | `Comfyui_Minimax_h3_latent_Upscaler` + `models/latent_upscale_models/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors` |
 | Motion Lab | [ComfyUI-MAINodes](https://github.com/matlowai/ComfyUI-MAINodes) |
 | 얼굴 다듬기 | [ComfyUI-H3-FaceRefine](https://github.com/Carasibana/ComfyUI-H3-FaceRefine) + `models/ultralytics/bbox/face_yolov8m.pt` |
