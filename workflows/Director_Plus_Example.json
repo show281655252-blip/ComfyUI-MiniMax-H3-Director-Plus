@@ -739,7 +739,7 @@
           "link": null
         },
         {
-          "label": "🙂 얼굴 다듬기 (긴 영상 · 장면 카드별)",
+          "label": "🙂 얼굴 다듬기",
           "name": "face_refine_enabled",
           "shape": 7,
           "type": "BOOLEAN",
@@ -749,7 +749,7 @@
           "link": null
         },
         {
-          "label": "🌀 Motion Lab (de-rope · 긴 영상 · 느림)",
+          "label": "🌀 Motion Lab (de-rope · 느림)",
           "name": "derope_enabled",
           "shape": 7,
           "type": "BOOLEAN",
@@ -1495,7 +1495,7 @@
         }
       },
       "widgets_values": [
-        "## Director Plus 공유본 — 먼저 읽어 주세요\n\n모델·참조 이미지·커스텀 노드 코드는 포함하지 않았습니다. 설치 후 **ComfyUI 재시작 → 브라우저 Ctrl+F5 → 이 워크플로우 다시 열기**.\n\n**기본 상태**: 긴 영상 ON · 장면별 생성(한 장면씩) · 5초 장면 1개(빨간 종이배 예제) · 미승인 · 새 프로젝트 ID · 8스텝 euler · 터보 LoRA ON · 오디오 재생성 Settings ON(장면 카드는 OFF) · 얼굴 다듬기·Motion Lab OFF · LBH OFF · Attention은 PyTorch.\n\n### 설치할 커스텀 노드\n\n| 노드팩 | 저장소 |\n| --- | --- |\n| Director Plus | [show281655252-blip/ComfyUI-MiniMax-H3-Director-Plus](https://github.com/show281655252-blip/ComfyUI-MiniMax-H3-Director-Plus) (Git URL로 설치) |\n| DaSiWa Nodes | [darksidewalker/ComfyUI-DaSiWa-Nodes](https://github.com/darksidewalker/ComfyUI-DaSiWa-Nodes) |\n| KJNodes | [kijai/ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes) |\n| Easy-Use | [yolain/ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) |\n| LoraManager | [willmiao/ComfyUI-Lora-Manager](https://github.com/willmiao/ComfyUI-Lora-Manager) |\n| Prompt Director (KillSwitch · 프롬프트 작성 창) | [Bokuwako/ComfyUI-MinimaxH3-PromptDirector](https://github.com/Bokuwako/ComfyUI-MinimaxH3-PromptDirector) |\n| LBH Latent Upscaler | [LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler](https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler) |\n| H3 Latent Upscaler | [rockerBOO/h3-latent-upscaler](https://github.com/rockerBOO/h3-latent-upscaler) |\n| MAINodes (선택 · Motion Lab) | [matlowai/ComfyUI-MAINodes](https://github.com/matlowai/ComfyUI-MAINodes) |\n| H3 FaceRefine (선택 · 얼굴 다듬기) | [Carasibana/ComfyUI-H3-FaceRefine](https://github.com/Carasibana/ComfyUI-H3-FaceRefine) |\n\n프롬프트 작성 창은 Ollama가 필요합니다.\n\n얼굴 다듬기(선택)는 얼굴 감지 모델이 필요합니다: [face_yolov8m.pt](https://huggingface.co/Bingsu/adetailer/resolve/main/face_yolov8m.pt) (52MB)\n\n→ 받은 파일을 **`ComfyUI/models/ultralytics/bbox/`** 폴더에 넣으세요(폴더가 없으면 만드세요). 넣은 뒤 ComfyUI를 재시작하세요.\n\n**ComfyUI-Manager에서 검색되지 않는 노드팩** (확인: 2026-10-04) — `ComfyUI/custom_nodes` 폴더에서 `git clone` 하세요. 나머지는 Manager에서 검색해 설치할 수 있습니다.\n\nshow281655252-blip/ComfyUI-MiniMax-H3-Director-Plus\n\n```\ngit clone https://github.com/show281655252-blip/ComfyUI-MiniMax-H3-Director-Plus.git\n```\n\nBokuwako/ComfyUI-MinimaxH3-PromptDirector\n\n```\ngit clone https://github.com/Bokuwako/ComfyUI-MinimaxH3-PromptDirector.git\n```\n\nLBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler\n\n```\ngit clone https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler.git\n```\n\n모델 (LBH 업스케일용, 691MB): [minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors](https://huggingface.co/LBH-123-AI/Minimax_h3_latent_Upscaler/resolve/main/minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors)\n\n→ 받은 파일을 **`ComfyUI/models/latent_upscale_models/`** 폴더에 넣으세요(폴더가 없으면 만드세요). 노드의 `model_name` 목록에 자동으로 나타납니다. 이 공유본의 LBH 모델 선택값도 이 파일 이름(fp16)으로 맞춰 두었습니다(LBH는 기본 OFF).\n\nrockerBOO/h3-latent-upscaler\n\n```\ngit clone https://github.com/rockerBOO/h3-latent-upscaler.git\n```\n\nmatlowai/ComfyUI-MAINodes (선택)\n\n```\ngit clone https://github.com/matlowai/ComfyUI-MAINodes.git\n```\n\n### 첫 실행\n1. Director의 Image 레인에 참조 이미지를 추가합니다(공유본에는 이미지가 없음).\n2. 장면 카드에 프롬프트를 쓰거나 **✍ 프롬프트 작성**(Ollama 필요)으로 넣습니다.\n3. 생성/실행 → 장면 확인 → **승인** → 장면 추가 → 다음 장면 생성. 계속 작업하려면 워크플로우와 `.ext` 프로젝트를 함께 보관하세요.\n4. 처음에는 해상도를 낮춰 설치를 확인해도 됩니다(기본 800×1088, 24fps).\n\n### 장면별 선택 기능 (Settings 스위치 + 장면 카드 ON/OFF)\n- 🔊 오디오 재생성(대사·소리 중요한 장면만, 장면당 약 +60~100초) · 🙂 얼굴 다듬기 · 🌀 Motion Lab(빠른 동작 장면만, 약 3배 느림). 새 장면은 모두 OFF로 시작.\n- 생성 중에는 ComfyUI 화면을 다른 탭으로 돌리면 더 빠릅니다.\n\n### 미리보기 (Model Preview Override)\nSettings 왼쪽의 미리보기 노드는 **bypass(꺼짐)** 상태입니다. 켜려면 `taeh3.safetensors`를 `models/vae_approx`에 넣고 노드를 활성화하세요(생성 중 영상 미리보기).\n\n### 확인 범위\n이 공유본은 현재 서버의 노드 정의와 대조했습니다(링크·모델 선택값·개인정보 검사). **새 ComfyUI에서 열기·GPU 생성은 아직 검증하지 않았습니다.**\n"
+        "## Director Plus 공유본 — 먼저 읽어 주세요\n\n모델·참조 이미지·커스텀 노드 코드는 포함하지 않았습니다. 설치 후 **ComfyUI 재시작 → 브라우저 Ctrl+F5 → 이 워크플로우 다시 열기**.\n\n**기본 상태**: 긴 영상 ON · 장면별 생성(한 장면씩) · 5초 장면 1개(빨간 종이배 예제) · 미승인 · 새 프로젝트 ID · 8스텝 euler · 터보 LoRA ON · 오디오 재생성 Settings ON(장면 카드는 OFF) · 얼굴 다듬기·Motion Lab OFF · LBH OFF · Attention은 PyTorch.\n\n### 설치할 커스텀 노드\n\n| 노드팩 | 저장소 |\n| --- | --- |\n| Director Plus | [show281655252-blip/ComfyUI-MiniMax-H3-Director-Plus](https://github.com/show281655252-blip/ComfyUI-MiniMax-H3-Director-Plus) (Git URL로 설치) |\n| DaSiWa Nodes | [darksidewalker/ComfyUI-DaSiWa-Nodes](https://github.com/darksidewalker/ComfyUI-DaSiWa-Nodes) |\n| KJNodes | [kijai/ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes) |\n| Easy-Use | [yolain/ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) |\n| LoraManager | [willmiao/ComfyUI-Lora-Manager](https://github.com/willmiao/ComfyUI-Lora-Manager) |\n| Prompt Director (KillSwitch · 프롬프트 작성 창) | [Bokuwako/ComfyUI-MinimaxH3-PromptDirector](https://github.com/Bokuwako/ComfyUI-MinimaxH3-PromptDirector) |\n| LBH Latent Upscaler | [LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler](https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler) |\n| H3 Latent Upscaler | [rockerBOO/h3-latent-upscaler](https://github.com/rockerBOO/h3-latent-upscaler) |\n| MAINodes (선택 · Motion Lab) | [matlowai/ComfyUI-MAINodes](https://github.com/matlowai/ComfyUI-MAINodes) |\n| H3 FaceRefine (선택 · 얼굴 다듬기) | [Carasibana/ComfyUI-H3-FaceRefine](https://github.com/Carasibana/ComfyUI-H3-FaceRefine) |\n\n프롬프트 작성 창은 Ollama가 필요합니다.\n\n얼굴 다듬기(선택)는 얼굴 감지 모델이 필요합니다: [face_yolov8m.pt](https://huggingface.co/Bingsu/adetailer/resolve/main/face_yolov8m.pt) (52MB)\n\n→ 받은 파일을 **`ComfyUI/models/ultralytics/bbox/`** 폴더에 넣으세요(폴더가 없으면 만드세요). 넣은 뒤 ComfyUI를 재시작하세요.\n\n**ComfyUI-Manager에서 검색되지 않는 노드팩** (확인: 2026-10-04) — `ComfyUI/custom_nodes` 폴더에서 `git clone` 하세요. 나머지는 Manager에서 검색해 설치할 수 있습니다.\n\nshow281655252-blip/ComfyUI-MiniMax-H3-Director-Plus\n\n```\ngit clone https://github.com/show281655252-blip/ComfyUI-MiniMax-H3-Director-Plus.git\n```\n\nBokuwako/ComfyUI-MinimaxH3-PromptDirector\n\n```\ngit clone https://github.com/Bokuwako/ComfyUI-MinimaxH3-PromptDirector.git\n```\n\nLBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler\n\n```\ngit clone https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler.git\n```\n\n모델 (LBH 업스케일용, 691MB): [minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors](https://huggingface.co/LBH-123-AI/Minimax_h3_latent_Upscaler/resolve/main/minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors)\n\n→ 받은 파일을 **`ComfyUI/models/latent_upscale_models/`** 폴더에 넣으세요(폴더가 없으면 만드세요). 노드의 `model_name` 목록에 자동으로 나타납니다. 이 공유본의 LBH 모델 선택값도 이 파일 이름(fp16)으로 맞춰 두었습니다(LBH는 기본 OFF).\n\nrockerBOO/h3-latent-upscaler\n\n```\ngit clone https://github.com/rockerBOO/h3-latent-upscaler.git\n```\n\nmatlowai/ComfyUI-MAINodes (선택)\n\n```\ngit clone https://github.com/matlowai/ComfyUI-MAINodes.git\n```\n\n### 첫 실행\n1. Director의 Image 레인에 참조 이미지를 추가합니다(공유본에는 이미지가 없음).\n2. 장면 카드에 프롬프트를 쓰거나 **✍ 프롬프트 작성**(Ollama 필요)으로 넣습니다.\n3. 생성/실행 → 장면 확인 → **승인** → 장면 추가 → 다음 장면 생성. 계속 작업하려면 워크플로우와 `.ext` 프로젝트를 함께 보관하세요.\n4. 처음에는 해상도를 낮춰 설치를 확인해도 됩니다(기본 800×1088, 24fps).\n\n### 장면별 선택 기능 (Settings 스위치 + 장면 카드 ON/OFF)\n- 🔊 오디오 재생성(대사·소리 중요한 장면만, 장면당 약 +60~100초) · 🙂 얼굴 다듬기 · 🌀 Motion Lab(빠른 동작 장면만, 약 3배 느림). 새 장면은 모두 OFF로 시작.\n- 단일 영상(I2VA·Ref2VA)에서도 Settings의 얼굴 다듬기·Motion Lab 스위치로 영상 전체에 적용됩니다(장면 카드는 없음, Motion Lab은 시간이 크게 늘어납니다).\n- 생성 중에는 ComfyUI 화면을 다른 탭으로 돌리면 더 빠릅니다.\n\n### 미리보기 (Model Preview Override)\nSettings 왼쪽의 미리보기 노드는 **bypass(꺼짐)** 상태입니다. 켜려면 `taeh3.safetensors`를 `models/vae_approx`에 넣고 노드를 활성화하세요(생성 중 영상 미리보기).\n\n### 확인 범위\n이 공유본은 현재 서버의 노드 정의와 대조했습니다(링크·모델 선택값·개인정보 검사). **새 ComfyUI에서 열기·GPU 생성은 아직 검증하지 않았습니다.**\n"
       ],
       "widgets_values_named": {
         "text": "## Director Plus 공유본 — 먼저 읽어 주세요\n\n모델·참조 이미지·커스텀 노드 코드는 포함하지 않았습니다. 설치 후 **ComfyUI 재시작 → 브라우저 Ctrl+F5 → 이 워크플로우 다시 열기**.\n\n**기본 상태**: 긴 영상 ON · 장면별 생성(한 장면씩) · 5초 장면 1개(빨간 종이배 예제) · 미승인 · 새 프로젝트 ID · 8스텝 euler · 터보 LoRA ON · 오디오 재생성 Settings ON(장면 카드는 OFF) · 얼굴 다듬기·Motion Lab OFF · LBH OFF · Attention은 PyTorch.\n\n### 설치할 커스텀 노드\n\n| 노드팩 | 저장소 |\n| --- | --- |\n| Director Plus | [show281655252-blip/ComfyUI-MiniMax-H3-Director-Plus](https://github.com/show281655252-blip/ComfyUI-MiniMax-H3-Director-Plus) (Git URL로 설치) |\n| DaSiWa Nodes | [darksidewalker/ComfyUI-DaSiWa-Nodes](https://github.com/darksidewalker/ComfyUI-DaSiWa-Nodes) |\n| KJNodes | [kijai/ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes) |\n| Easy-Use | [yolain/ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) |\n| LoraManager | [willmiao/ComfyUI-Lora-Manager](https://github.com/willmiao/ComfyUI-Lora-Manager) |\n| Prompt Director (KillSwitch · 프롬프트 작성 창) | [Bokuwako/ComfyUI-MinimaxH3-PromptDirector](https://github.com/Bokuwako/ComfyUI-MinimaxH3-PromptDirector) |\n| LBH Latent Upscaler | [LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler](https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler) |\n| H3 Latent Upscaler | [rockerBOO/h3-latent-upscaler](https://github.com/rockerBOO/h3-latent-upscaler) |\n| MAINodes (선택 · Motion Lab) | [matlowai/ComfyUI-MAINodes](https://github.com/matlowai/ComfyUI-MAINodes) |\n| H3 FaceRefine (선택 · 얼굴 다듬기) | [Carasibana/ComfyUI-H3-FaceRefine](https://github.com/Carasibana/ComfyUI-H3-FaceRefine) |\n\n얼굴 다듬기는 감지 모델 `face_yolov8m.pt`가 필요하고, 프롬프트 작성 창은 Ollama가 필요합니다.\n\n**ComfyUI-Manager에서 검색되지 않는 노드팩** (확인: 2026-10-04) — `ComfyUI/custom_nodes` 폴더에서 `git clone` 하세요. 나머지는 Manager에서 검색해 설치할 수 있습니다.\n\nshow281655252-blip/ComfyUI-MiniMax-H3-Director-Plus\n\n```\ngit clone https://github.com/show281655252-blip/ComfyUI-MiniMax-H3-Director-Plus.git\n```\n\nBokuwako/ComfyUI-MinimaxH3-PromptDirector\n\n```\ngit clone https://github.com/Bokuwako/ComfyUI-MinimaxH3-PromptDirector.git\n```\n\nLBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler\n\n```\ngit clone https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler.git\n```\n\n모델 (LBH 업스케일용, 691MB): [minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors](https://huggingface.co/LBH-123-AI/Minimax_h3_latent_Upscaler/resolve/main/minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors)\n\n→ 받은 파일을 **`ComfyUI/models/latent_upscale_models/`** 폴더에 넣으세요(폴더가 없으면 만드세요). 노드의 `model_name` 목록에 자동으로 나타납니다. 이 공유본의 LBH 모델 선택값도 이 파일 이름(fp16)으로 맞춰 두었습니다(LBH는 기본 OFF).\n\nmatlowai/ComfyUI-MAINodes (선택)\n\n```\ngit clone https://github.com/matlowai/ComfyUI-MAINodes.git\n```\n\n### 첫 실행\n1. Director의 Image 레인에 참조 이미지를 추가합니다(공유본에는 이미지가 없음).\n2. 장면 카드에 프롬프트를 쓰거나 **✍ 프롬프트 작성**(Ollama 필요)으로 넣습니다.\n3. 생성/실행 → 장면 확인 → **승인** → 장면 추가 → 다음 장면 생성. 계속 작업하려면 워크플로우와 `.ext` 프로젝트를 함께 보관하세요.\n4. 처음에는 해상도를 낮춰 설치를 확인해도 됩니다(기본 800×1088, 24fps).\n\n### 장면별 선택 기능 (Settings 스위치 + 장면 카드 ON/OFF)\n- 🔊 오디오 재생성(대사·소리 중요한 장면만, 장면당 약 +60~100초) · 🙂 얼굴 다듬기 · 🌀 Motion Lab(빠른 동작 장면만, 약 3배 느림). 새 장면은 모두 OFF로 시작.\n- 생성 중에는 ComfyUI 화면을 다른 탭으로 돌리면 더 빠릅니다.\n\n### 미리보기 (Model Preview Override)\nSettings 왼쪽의 미리보기 노드는 **bypass(꺼짐)** 상태입니다. 켜려면 `taeh3.safetensors`를 `models/vae_approx`에 넣고 노드를 활성화하세요(생성 중 영상 미리보기).\n\n### 확인 범위\n이 공유본은 현재 서버의 노드 정의와 대조했습니다(링크·모델 선택값·개인정보 검사). **새 ComfyUI에서 열기·GPU 생성은 아직 검증하지 않았습니다.**\n"
@@ -1707,8 +1707,8 @@
         "version": 1,
         "state": {
           "lastGroupId": 234,
-          "lastNodeId": 2950,
-          "lastLinkId": 6514,
+          "lastNodeId": 2956,
+          "lastLinkId": 6552,
           "lastRerouteId": 0
         },
         "revision": 33,
@@ -1739,7 +1739,9 @@
             "type": "COMBO",
             "linkIds": [
               5598,
-              6407
+              6407,
+              6529,
+              6548
             ],
             "pos": [
               -298.19921875,
@@ -1766,7 +1768,9 @@
             "linkIds": [
               5600,
               5842,
-              6068
+              6068,
+              6531,
+              6550
             ],
             "pos": [
               -298.19921875,
@@ -1778,7 +1782,11 @@
             "name": "noise_seed",
             "type": "INT",
             "linkIds": [
-              5917
+              5917,
+              6528,
+              6532,
+              6547,
+              6551
             ],
             "pos": [
               -298.19921875,
@@ -1958,7 +1966,9 @@
             "name": "director_frame_count",
             "type": "INT",
             "linkIds": [
-              6046
+              6046,
+              6527,
+              6546
             ],
             "label": "duration_from_director",
             "pos": [
@@ -1975,7 +1985,9 @@
               6090,
               6095,
               6112,
-              6421
+              6421,
+              6517,
+              6536
             ],
             "label": "🧬 LBH Current + 4-Step Refine",
             "pos": [
@@ -2030,9 +2042,11 @@
             "name": "face_refine_enabled",
             "type": "BOOLEAN",
             "linkIds": [
-              6511
+              6511,
+              6533,
+              6552
             ],
-            "label": "🙂 얼굴 다듬기 (긴 영상 · 장면 카드별)",
+            "label": "🙂 얼굴 다듬기",
             "pos": [
               -298.19921875,
               444
@@ -2043,9 +2057,11 @@
             "name": "derope_enabled",
             "type": "BOOLEAN",
             "linkIds": [
-              6510
+              6510,
+              6530,
+              6549
             ],
-            "label": "🌀 Motion Lab (de-rope · 긴 영상 · 느림)",
+            "label": "🌀 Motion Lab (de-rope · 느림)",
             "pos": [
               -298.19921875,
               464
@@ -2732,7 +2748,8 @@
                 "type": "SIGMAS",
                 "links": [
                   6069,
-                  6071
+                  6071,
+                  6545
                 ]
               }
             ],
@@ -2819,7 +2836,8 @@
                 "links": [
                   6091,
                   6093,
-                  6406
+                  6406,
+                  6526
                 ]
               }
             ],
@@ -3068,7 +3086,11 @@
                   6427,
                   6429,
                   6442,
-                  6465
+                  6465,
+                  6522,
+                  6525,
+                  6541,
+                  6544
                 ]
               }
             ],
@@ -3313,7 +3335,9 @@
                 "type": "MODEL",
                 "links": [
                   5883,
-                  6081
+                  6081,
+                  6539,
+                  6542
                 ]
               }
             ],
@@ -3389,7 +3413,9 @@
                 "links": [
                   5881,
                   6103,
-                  6402
+                  6402,
+                  6520,
+                  6523
                 ]
               }
             ],
@@ -3466,7 +3492,8 @@
                 "links": [
                   5960,
                   6193,
-                  6462
+                  6462,
+                  6515
                 ]
               },
               {
@@ -4085,9 +4112,7 @@
                 "name": "output",
                 "type": "LATENT",
                 "links": [
-                  5695,
-                  5696,
-                  6435
+                  6537
                 ]
               }
             ],
@@ -4564,9 +4589,7 @@
                 "name": "output",
                 "type": "LATENT",
                 "links": [
-                  5802,
-                  5804,
-                  6458
+                  6518
                 ]
               }
             ],
@@ -5038,7 +5061,8 @@
                 "name": "CONDITIONING",
                 "type": "CONDITIONING",
                 "links": [
-                  6170
+                  6170,
+                  6516
                 ]
               }
             ],
@@ -5104,7 +5128,8 @@
                 "name": "CONDITIONING",
                 "type": "CONDITIONING",
                 "links": [
-                  6168
+                  6168,
+                  6535
                 ]
               }
             ],
@@ -5406,7 +5431,8 @@
                 "links": [
                   5956,
                   6191,
-                  6439
+                  6439,
+                  6534
                 ]
               },
               {
@@ -7718,6 +7744,522 @@
               "showOutputText": false,
               "horizontal": false
             }
+          },
+          {
+            "id": 2951,
+            "type": "ComfySwitchNode",
+            "pos": [
+              6240,
+              3916
+            ],
+            "size": [
+              345,
+              86
+            ],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "on_false",
+                "name": "on_false",
+                "type": "CONDITIONING",
+                "link": 6515,
+                "shape": 7
+              },
+              {
+                "localized_name": "on_true",
+                "name": "on_true",
+                "type": "CONDITIONING",
+                "link": 6516,
+                "shape": 7
+              },
+              {
+                "localized_name": "switch",
+                "name": "switch",
+                "type": "BOOLEAN",
+                "link": 6517,
+                "widget": {
+                  "name": "switch"
+                }
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "output",
+                "name": "output",
+                "type": "CONDITIONING",
+                "links": [
+                  6521,
+                  6524
+                ]
+              }
+            ],
+            "title": "Ref2VA · 후처리 조건 (LBH 켜면 고해상도 조건)",
+            "properties": {
+              "Node name for S&R": "ComfySwitchNode",
+              "cnr_id": "comfy-core",
+              "ver": "0.14.1"
+            },
+            "widgets_values": [
+              true
+            ],
+            "color": "#416e88",
+            "bgcolor": "#20252d"
+          },
+          {
+            "id": 2952,
+            "type": "DirectorPlusMotionLab",
+            "pos": [
+              6240,
+              4046
+            ],
+            "size": [
+              360,
+              270
+            ],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "model",
+                "name": "model",
+                "type": "MODEL",
+                "link": 6520
+              },
+              {
+                "localized_name": "conditioning",
+                "name": "conditioning",
+                "type": "CONDITIONING",
+                "link": 6521
+              },
+              {
+                "localized_name": "latent",
+                "name": "latent",
+                "type": "LATENT",
+                "link": 6518
+              },
+              {
+                "localized_name": "sigmas",
+                "name": "sigmas",
+                "type": "SIGMAS",
+                "link": 6526
+              },
+              {
+                "localized_name": "vae",
+                "name": "vae",
+                "type": "VAE",
+                "link": 6522
+              },
+              {
+                "localized_name": "frame_count",
+                "name": "frame_count",
+                "type": "INT",
+                "link": 6527,
+                "widget": {
+                  "name": "frame_count"
+                }
+              },
+              {
+                "localized_name": "noise_seed",
+                "name": "noise_seed",
+                "type": "INT",
+                "link": 6528,
+                "widget": {
+                  "name": "noise_seed"
+                }
+              },
+              {
+                "localized_name": "sampler_name",
+                "name": "sampler_name",
+                "type": "COMBO",
+                "link": 6529,
+                "widget": {
+                  "name": "sampler_name"
+                }
+              },
+              {
+                "localized_name": "enabled",
+                "name": "enabled",
+                "type": "BOOLEAN",
+                "link": 6530,
+                "widget": {
+                  "name": "enabled"
+                }
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "latent",
+                "name": "latent",
+                "type": "LATENT",
+                "links": [
+                  6519
+                ]
+              }
+            ],
+            "title": "Ref2VA · Motion Lab (Settings 스위치)",
+            "properties": {
+              "Node name for S&R": "DirectorPlusMotionLab"
+            },
+            "widgets_values": [
+              121,
+              0,
+              "euler",
+              false
+            ],
+            "color": "#695889",
+            "bgcolor": "#20252d"
+          },
+          {
+            "id": 2953,
+            "type": "DirectorPlusFaceRefine",
+            "pos": [
+              6640,
+              4046
+            ],
+            "size": [
+              360,
+              220
+            ],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "model",
+                "name": "model",
+                "type": "MODEL",
+                "link": 6523
+              },
+              {
+                "localized_name": "conditioning",
+                "name": "conditioning",
+                "type": "CONDITIONING",
+                "link": 6524
+              },
+              {
+                "localized_name": "latent",
+                "name": "latent",
+                "type": "LATENT",
+                "link": 6519
+              },
+              {
+                "localized_name": "vae",
+                "name": "vae",
+                "type": "VAE",
+                "link": 6525
+              },
+              {
+                "localized_name": "steps",
+                "name": "steps",
+                "type": "INT",
+                "link": 6531,
+                "widget": {
+                  "name": "steps"
+                }
+              },
+              {
+                "localized_name": "noise_seed",
+                "name": "noise_seed",
+                "type": "INT",
+                "link": 6532,
+                "widget": {
+                  "name": "noise_seed"
+                }
+              },
+              {
+                "localized_name": "enabled",
+                "name": "enabled",
+                "type": "BOOLEAN",
+                "link": 6533,
+                "widget": {
+                  "name": "enabled"
+                }
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "latent",
+                "name": "latent",
+                "type": "LATENT",
+                "links": [
+                  5802,
+                  5804,
+                  6458
+                ]
+              }
+            ],
+            "title": "Ref2VA · 얼굴 다듬기 (Settings 스위치)",
+            "properties": {
+              "Node name for S&R": "DirectorPlusFaceRefine"
+            },
+            "widgets_values": [
+              8,
+              0,
+              false
+            ],
+            "color": "#695889",
+            "bgcolor": "#20252d"
+          },
+          {
+            "id": 2954,
+            "type": "ComfySwitchNode",
+            "pos": [
+              6240,
+              4436
+            ],
+            "size": [
+              345,
+              86
+            ],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "on_false",
+                "name": "on_false",
+                "type": "CONDITIONING",
+                "link": 6534,
+                "shape": 7
+              },
+              {
+                "localized_name": "on_true",
+                "name": "on_true",
+                "type": "CONDITIONING",
+                "link": 6535,
+                "shape": 7
+              },
+              {
+                "localized_name": "switch",
+                "name": "switch",
+                "type": "BOOLEAN",
+                "link": 6536,
+                "widget": {
+                  "name": "switch"
+                }
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "output",
+                "name": "output",
+                "type": "CONDITIONING",
+                "links": [
+                  6540,
+                  6543
+                ]
+              }
+            ],
+            "title": "FL2VA · 후처리 조건 (LBH 켜면 고해상도 조건)",
+            "properties": {
+              "Node name for S&R": "ComfySwitchNode",
+              "cnr_id": "comfy-core",
+              "ver": "0.14.1"
+            },
+            "widgets_values": [
+              true
+            ],
+            "color": "#416e88",
+            "bgcolor": "#20252d"
+          },
+          {
+            "id": 2955,
+            "type": "DirectorPlusMotionLab",
+            "pos": [
+              6240,
+              4566
+            ],
+            "size": [
+              360,
+              270
+            ],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "model",
+                "name": "model",
+                "type": "MODEL",
+                "link": 6539
+              },
+              {
+                "localized_name": "conditioning",
+                "name": "conditioning",
+                "type": "CONDITIONING",
+                "link": 6540
+              },
+              {
+                "localized_name": "latent",
+                "name": "latent",
+                "type": "LATENT",
+                "link": 6537
+              },
+              {
+                "localized_name": "sigmas",
+                "name": "sigmas",
+                "type": "SIGMAS",
+                "link": 6545
+              },
+              {
+                "localized_name": "vae",
+                "name": "vae",
+                "type": "VAE",
+                "link": 6541
+              },
+              {
+                "localized_name": "frame_count",
+                "name": "frame_count",
+                "type": "INT",
+                "link": 6546,
+                "widget": {
+                  "name": "frame_count"
+                }
+              },
+              {
+                "localized_name": "noise_seed",
+                "name": "noise_seed",
+                "type": "INT",
+                "link": 6547,
+                "widget": {
+                  "name": "noise_seed"
+                }
+              },
+              {
+                "localized_name": "sampler_name",
+                "name": "sampler_name",
+                "type": "COMBO",
+                "link": 6548,
+                "widget": {
+                  "name": "sampler_name"
+                }
+              },
+              {
+                "localized_name": "enabled",
+                "name": "enabled",
+                "type": "BOOLEAN",
+                "link": 6549,
+                "widget": {
+                  "name": "enabled"
+                }
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "latent",
+                "name": "latent",
+                "type": "LATENT",
+                "links": [
+                  6538
+                ]
+              }
+            ],
+            "title": "FL2VA · Motion Lab (Settings 스위치)",
+            "properties": {
+              "Node name for S&R": "DirectorPlusMotionLab"
+            },
+            "widgets_values": [
+              121,
+              0,
+              "euler",
+              false
+            ],
+            "color": "#695889",
+            "bgcolor": "#20252d"
+          },
+          {
+            "id": 2956,
+            "type": "DirectorPlusFaceRefine",
+            "pos": [
+              6640,
+              4566
+            ],
+            "size": [
+              360,
+              220
+            ],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "model",
+                "name": "model",
+                "type": "MODEL",
+                "link": 6542
+              },
+              {
+                "localized_name": "conditioning",
+                "name": "conditioning",
+                "type": "CONDITIONING",
+                "link": 6543
+              },
+              {
+                "localized_name": "latent",
+                "name": "latent",
+                "type": "LATENT",
+                "link": 6538
+              },
+              {
+                "localized_name": "vae",
+                "name": "vae",
+                "type": "VAE",
+                "link": 6544
+              },
+              {
+                "localized_name": "steps",
+                "name": "steps",
+                "type": "INT",
+                "link": 6550,
+                "widget": {
+                  "name": "steps"
+                }
+              },
+              {
+                "localized_name": "noise_seed",
+                "name": "noise_seed",
+                "type": "INT",
+                "link": 6551,
+                "widget": {
+                  "name": "noise_seed"
+                }
+              },
+              {
+                "localized_name": "enabled",
+                "name": "enabled",
+                "type": "BOOLEAN",
+                "link": 6552,
+                "widget": {
+                  "name": "enabled"
+                }
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "latent",
+                "name": "latent",
+                "type": "LATENT",
+                "links": [
+                  5695,
+                  5696,
+                  6435
+                ]
+              }
+            ],
+            "title": "FL2VA · 얼굴 다듬기 (Settings 스위치)",
+            "properties": {
+              "Node name for S&R": "DirectorPlusFaceRefine"
+            },
+            "widgets_values": [
+              8,
+              0,
+              false
+            ],
+            "color": "#695889",
+            "bgcolor": "#20252d"
           }
         ],
         "groups": [
@@ -7981,7 +8523,7 @@
           },
           {
             "id": 5695,
-            "origin_id": 2774,
+            "origin_id": 2956,
             "origin_slot": 0,
             "target_id": 2630,
             "target_slot": 0,
@@ -7989,7 +8531,7 @@
           },
           {
             "id": 5696,
-            "origin_id": 2774,
+            "origin_id": 2956,
             "origin_slot": 0,
             "target_id": 2631,
             "target_slot": 0,
@@ -8021,7 +8563,7 @@
           },
           {
             "id": 5802,
-            "origin_id": 2783,
+            "origin_id": 2953,
             "origin_slot": 0,
             "target_id": 2669,
             "target_slot": 0,
@@ -8029,7 +8571,7 @@
           },
           {
             "id": 5804,
-            "origin_id": 2783,
+            "origin_id": 2953,
             "origin_slot": 0,
             "target_id": 2671,
             "target_slot": 0,
@@ -8989,7 +9531,7 @@
           },
           {
             "id": 6435,
-            "origin_id": 2774,
+            "origin_id": 2956,
             "origin_slot": 0,
             "target_id": 2921,
             "target_slot": 0,
@@ -9173,7 +9715,7 @@
           },
           {
             "id": 6458,
-            "origin_id": 2783,
+            "origin_id": 2953,
             "origin_slot": 0,
             "target_id": 2930,
             "target_slot": 0,
@@ -9514,6 +10056,310 @@
             "target_id": 2769,
             "target_slot": 3,
             "type": "FLOAT"
+          },
+          {
+            "id": 6515,
+            "origin_id": 2700,
+            "origin_slot": 0,
+            "target_id": 2951,
+            "target_slot": 0,
+            "type": "CONDITIONING"
+          },
+          {
+            "id": 6516,
+            "origin_id": 2828,
+            "origin_slot": 0,
+            "target_id": 2951,
+            "target_slot": 1,
+            "type": "CONDITIONING"
+          },
+          {
+            "id": 6517,
+            "origin_id": -10,
+            "origin_slot": 17,
+            "target_id": 2951,
+            "target_slot": 2,
+            "type": "BOOLEAN"
+          },
+          {
+            "id": 6518,
+            "origin_id": 2783,
+            "origin_slot": 0,
+            "target_id": 2952,
+            "target_slot": 2,
+            "type": "LATENT"
+          },
+          {
+            "id": 6519,
+            "origin_id": 2952,
+            "origin_slot": 0,
+            "target_id": 2953,
+            "target_slot": 2,
+            "type": "LATENT"
+          },
+          {
+            "id": 6520,
+            "origin_id": 2691,
+            "origin_slot": 0,
+            "target_id": 2952,
+            "target_slot": 0,
+            "type": "MODEL"
+          },
+          {
+            "id": 6521,
+            "origin_id": 2951,
+            "origin_slot": 0,
+            "target_id": 2952,
+            "target_slot": 1,
+            "type": "CONDITIONING"
+          },
+          {
+            "id": 6522,
+            "origin_id": 2584,
+            "origin_slot": 0,
+            "target_id": 2952,
+            "target_slot": 4,
+            "type": "VAE"
+          },
+          {
+            "id": 6523,
+            "origin_id": 2691,
+            "origin_slot": 0,
+            "target_id": 2953,
+            "target_slot": 0,
+            "type": "MODEL"
+          },
+          {
+            "id": 6524,
+            "origin_id": 2951,
+            "origin_slot": 0,
+            "target_id": 2953,
+            "target_slot": 1,
+            "type": "CONDITIONING"
+          },
+          {
+            "id": 6525,
+            "origin_id": 2584,
+            "origin_slot": 0,
+            "target_id": 2953,
+            "target_slot": 3,
+            "type": "VAE"
+          },
+          {
+            "id": 6526,
+            "origin_id": 2679,
+            "origin_slot": 0,
+            "target_id": 2952,
+            "target_slot": 3,
+            "type": "SIGMAS"
+          },
+          {
+            "id": 6527,
+            "origin_id": -10,
+            "origin_slot": 16,
+            "target_id": 2952,
+            "target_slot": 5,
+            "type": "INT"
+          },
+          {
+            "id": 6528,
+            "origin_id": -10,
+            "origin_slot": 3,
+            "target_id": 2952,
+            "target_slot": 6,
+            "type": "INT"
+          },
+          {
+            "id": 6529,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 2952,
+            "target_slot": 7,
+            "type": "COMBO"
+          },
+          {
+            "id": 6530,
+            "origin_id": -10,
+            "origin_slot": 22,
+            "target_id": 2952,
+            "target_slot": 8,
+            "type": "BOOLEAN"
+          },
+          {
+            "id": 6531,
+            "origin_id": -10,
+            "origin_slot": 2,
+            "target_id": 2953,
+            "target_slot": 4,
+            "type": "INT"
+          },
+          {
+            "id": 6532,
+            "origin_id": -10,
+            "origin_slot": 3,
+            "target_id": 2953,
+            "target_slot": 5,
+            "type": "INT"
+          },
+          {
+            "id": 6533,
+            "origin_id": -10,
+            "origin_slot": 21,
+            "target_id": 2953,
+            "target_slot": 6,
+            "type": "BOOLEAN"
+          },
+          {
+            "id": 6534,
+            "origin_id": 2701,
+            "origin_slot": 0,
+            "target_id": 2954,
+            "target_slot": 0,
+            "type": "CONDITIONING"
+          },
+          {
+            "id": 6535,
+            "origin_id": 2827,
+            "origin_slot": 0,
+            "target_id": 2954,
+            "target_slot": 1,
+            "type": "CONDITIONING"
+          },
+          {
+            "id": 6536,
+            "origin_id": -10,
+            "origin_slot": 17,
+            "target_id": 2954,
+            "target_slot": 2,
+            "type": "BOOLEAN"
+          },
+          {
+            "id": 6537,
+            "origin_id": 2774,
+            "origin_slot": 0,
+            "target_id": 2955,
+            "target_slot": 2,
+            "type": "LATENT"
+          },
+          {
+            "id": 6538,
+            "origin_id": 2955,
+            "origin_slot": 0,
+            "target_id": 2956,
+            "target_slot": 2,
+            "type": "LATENT"
+          },
+          {
+            "id": 6539,
+            "origin_id": 2692,
+            "origin_slot": 0,
+            "target_id": 2955,
+            "target_slot": 0,
+            "type": "MODEL"
+          },
+          {
+            "id": 6540,
+            "origin_id": 2954,
+            "origin_slot": 0,
+            "target_id": 2955,
+            "target_slot": 1,
+            "type": "CONDITIONING"
+          },
+          {
+            "id": 6541,
+            "origin_id": 2584,
+            "origin_slot": 0,
+            "target_id": 2955,
+            "target_slot": 4,
+            "type": "VAE"
+          },
+          {
+            "id": 6542,
+            "origin_id": 2692,
+            "origin_slot": 0,
+            "target_id": 2956,
+            "target_slot": 0,
+            "type": "MODEL"
+          },
+          {
+            "id": 6543,
+            "origin_id": 2954,
+            "origin_slot": 0,
+            "target_id": 2956,
+            "target_slot": 1,
+            "type": "CONDITIONING"
+          },
+          {
+            "id": 6544,
+            "origin_id": 2584,
+            "origin_slot": 0,
+            "target_id": 2956,
+            "target_slot": 3,
+            "type": "VAE"
+          },
+          {
+            "id": 6545,
+            "origin_id": 2590,
+            "origin_slot": 0,
+            "target_id": 2955,
+            "target_slot": 3,
+            "type": "SIGMAS"
+          },
+          {
+            "id": 6546,
+            "origin_id": -10,
+            "origin_slot": 16,
+            "target_id": 2955,
+            "target_slot": 5,
+            "type": "INT"
+          },
+          {
+            "id": 6547,
+            "origin_id": -10,
+            "origin_slot": 3,
+            "target_id": 2955,
+            "target_slot": 6,
+            "type": "INT"
+          },
+          {
+            "id": 6548,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 2955,
+            "target_slot": 7,
+            "type": "COMBO"
+          },
+          {
+            "id": 6549,
+            "origin_id": -10,
+            "origin_slot": 22,
+            "target_id": 2955,
+            "target_slot": 8,
+            "type": "BOOLEAN"
+          },
+          {
+            "id": 6550,
+            "origin_id": -10,
+            "origin_slot": 2,
+            "target_id": 2956,
+            "target_slot": 4,
+            "type": "INT"
+          },
+          {
+            "id": 6551,
+            "origin_id": -10,
+            "origin_slot": 3,
+            "target_id": 2956,
+            "target_slot": 5,
+            "type": "INT"
+          },
+          {
+            "id": 6552,
+            "origin_id": -10,
+            "origin_slot": 21,
+            "target_id": 2956,
+            "target_slot": 6,
+            "type": "BOOLEAN"
           }
         ],
         "extra": {
