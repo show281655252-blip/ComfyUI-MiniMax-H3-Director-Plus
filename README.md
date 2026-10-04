@@ -61,7 +61,7 @@ PyTorch/torchaudio를 다른 버전으로 바꾸지 말고 ComfyUI 배포본과 
 
 ## 사용법
 
-1. `workflows/Director_Plus_HyperFlow.json`(기본 예제)을 불러와 모델 파일을 고릅니다. 이 예제는 기본 기능만 담고 있고, 오디오 재생성·얼굴 다듬기·Motion Lab 같은 Settings 스위치는 직접 연결해야 합니다.
+1. `workflows/Director_Plus_Example.json`을 불러옵니다. 워크플로우 안의 메모 노드에 설치할 커스텀 노드와 첫 실행 순서가 적혀 있습니다. Settings에서 모델 파일을 실제 파일로 고르세요(터보 LoRA는 LoraManager 로더에서 선택).
 2. 장면 카드에 프롬프트를 쓰고 **생성 / 실행**합니다.
 3. 마음에 들면 카드의 **승인** 체크박스를 누릅니다. 다음 장면이 자동 선택되며, 다시 **생성 / 실행**합니다. 마지막 장면 뒤에 이어 가려면 **+ 장면 추가**를 누릅니다.
 
