@@ -57,6 +57,7 @@ PyTorch/torchaudio를 다른 버전으로 바꾸지 말고 ComfyUI 배포본과 
 - **Director Plus · Generate**: Motion Context로 장면을 이어서 생성
 - **Director Plus · Video Output**: 영상 저장 및 미리보기
 - **Director Plus · Conditioning Match Latent**: 단일 영상 LBH에서 조건을 실제 출력 격자에 맞춤
+- **Director Plus · Motion Lab (단일 영상)** / **Director Plus · 얼굴 다듬기 (단일 영상)**: 단일 영상(FL2VA·Ref2VA)의 최종 잠재값에 두 기능을 적용 (아래 「단일 영상에서 쓰기」)
 
 ## 사용법
 
@@ -94,6 +95,10 @@ PyTorch/torchaudio를 다른 버전으로 바꾸지 말고 ComfyUI 배포본과 
 세 기능 모두 같은 방식입니다. **Settings 스위치가 ON이고 장면 카드도 ON인 장면에만** 적용합니다. Settings가 꺼져 있으면 카드 토글은 흐리게 「Settings에서 꺼짐」으로 표시되고 바꿀 수 없습니다. 새 장면은 모두 OFF로 시작하니 필요한 장면만 켜세요(필드가 없는 이전 장면은 ON으로 취급). 카드 값을 바꾸면 그 장면부터 다시 생성합니다.
 
 세 기능은 **캐시 이름에 들어가지 않습니다.** Settings 값을 바꿔도 승인된 장면은 그대로 유지됩니다. 단, 이미 만든 장면은 만들 때의 설정 그대로이므로 새 설정을 적용하려면 승인을 해제하고 다시 생성하세요. Settings를 바꾸면 승인하지 않고 생성만 된 장면은 자동으로 초기화됩니다.
+
+### 단일 영상에서 쓰기
+
+위 두 기능은 긴 영상의 장면 루프 안에서 돌아가지만, 단일 영상(FL2VA·I2VA·Ref2VA)에서도 같은 Settings 스위치(🙂 얼굴 다듬기, 🌀 Motion Lab)로 켤 수 있습니다. Settings 서브그래프의 최종 잠재값 뒤에 `Director Plus · Motion Lab (단일 영상)` → `Director Plus · 얼굴 다듬기 (단일 영상)` 노드가 연결돼 있고, 스위치가 꺼져 있으면 잠재값을 그대로 통과시킵니다. 장면 카드가 없으므로 장면별 ON/OFF는 없습니다. LBH를 켜면 고해상도 결과에 적용되어(긴 영상은 LBH 전에 Motion Lab) 더 오래 걸립니다. 소리는 바뀌지 않으며, 오디오 재생성은 두 처리 뒤의 영상으로 합니다. 이 노드들을 직접 연결해 쓰려면 모델·조건(LBH를 썼다면 고해상도에 맞춘 조건)·최종 잠재값·VAE를 넣으세요. Motion Lab에는 전체 스케줄 `sigmas`와 영상 프레임 수가 더 필요합니다.
 
 ### 🔊 오디오 재생성
 
