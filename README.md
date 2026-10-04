@@ -54,7 +54,7 @@ PyTorch/torchaudio를 다른 버전으로 바꾸지 말고 ComfyUI 배포본과 
 ## 노드
 
 - **MiniMax H3 Director Plus**: 레퍼런스·장면 타임라인·프롬프트(단일 편집기 + 프롬프트 작성 창)·시드 관리
-- **Director Plus · Generate**: Motion Context와 HyperFlow SIGMAS로 장면 생성
+- **Director Plus · Generate**: Motion Context로 장면을 이어서 생성
 - **Director Plus · Video Output**: 영상 저장 및 미리보기
 - **Director Plus · Conditioning Match Latent**: 단일 영상 LBH에서 조건을 실제 출력 격자에 맞춤
 
@@ -97,7 +97,7 @@ PyTorch/torchaudio를 다른 버전으로 바꾸지 말고 ComfyUI 배포본과 
 
 ### 🔊 오디오 재생성
 
-`audio_regen_enabled`를 켜고 `audio_regen_model`에 **터보/HyperFlow를 적용하기 전의 기본 모델**(같은 Sigma Shift)을 연결합니다. 장면마다 영상 잠재값을 0.5배로 줄여 오디오와 합친 뒤 30스텝·denoise 0.5로 재샘플링하고 **오디오만** 교체합니다. 화면과 대사 타이밍은 바뀌지 않습니다. 몇 스텝짜리 터보 모델이 만든 오디오의 잡음(험 등)을 줄이는 용도이며 장면당 시간이 추가로 듭니다. 끈 장면은 1차 생성 소리를 그대로 씁니다.
+`audio_regen_enabled`를 켜고 `audio_regen_model`에 **터보 LoRA를 적용하기 전의 기본 모델**(같은 Sigma Shift)을 연결합니다. 장면마다 영상 잠재값을 0.5배로 줄여 오디오와 합친 뒤 30스텝·denoise 0.5로 재샘플링하고 **오디오만** 교체합니다. 화면과 대사 타이밍은 바뀌지 않습니다. 몇 스텝짜리 터보 모델이 만든 오디오의 잡음(험 등)을 줄이는 용도이며 장면당 시간이 추가로 듭니다. 끈 장면은 1차 생성 소리를 그대로 씁니다.
 
 ### 🙂 얼굴 다듬기
 
