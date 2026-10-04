@@ -229,6 +229,20 @@ export function renderLongVideo(node, state, emit) {
 
   };
 
+  // A Settings switch (audio regen / Motion Lab) changed: generated scenes that are not approved were
+  // made with the old value, so reset them. Approved scenes are kept.
+  rt.invalidateUnapproved = async () => {
+    const long = rt.state?.long_video;
+    const first = (long?.clips || []).findIndex(c => !c.validated);
+    if (first < 0 || !long.cache_owner) return false;
+    const generated = (rt.cached || []).some(id => long.clips.findIndex(c => c.id === id) >= first);
+    if (!generated) return false;
+    await invalidate(first);
+    rt.message = "Settings가 바뀌어 아직 승인하지 않은 생성 장면을 다시 만들도록 초기화했습니다(승인된 장면은 그대로).";
+    save(); refresh();
+    return true;
+  };
+
   // Prompt Studio writes a scene's prompt straight into its card: the card then keeps its own prompt
   // (external prompt OFF) and a generated scene is invalidated like a typed edit.
   rt.setScenePrompt = async (index, text) => {
@@ -1031,36 +1045,35 @@ export function renderLongVideo(node, state, emit) {
 
 }
 
-// A .ext remembers the LBH / audio-regen settings it was generated with. Those settings are part
-// of the cache identity, so put them back on the workflow's controls (the Settings subgraph or an
-// unlinked Generate node); otherwise the next run would regenerate every approved scene.
+// A .ext remembers the LBH settings it was generated with. LBH changes the output size and is part
+// of the cache identity, so put it back on the workflow's controls (the Settings subgraph or an
+// unlinked Generate node); otherwise the next run would regenerate every approved scene. Audio regen
+// and Motion Lab are per scene and not part of the identity, so they are left as the workflow has them.
 const PROJECT_SETTING_WIDGETS = [
-  { lbh: "lbh_latent_upscale_enabled", scale: "lbh_latent_upscale_scale", full: "lbh_full_first_pass", regen: "audio_regen_enabled" },
-  { lbh: "lbh_enabled", scale: "lbh_scale", full: "lbh_full_first_pass", regen: "audio_regen_enabled" },
+  { lbh: "lbh_latent_upscale_enabled", scale: "lbh_latent_upscale_scale", full: "lbh_full_first_pass" },
+  { lbh: "lbh_enabled", scale: "lbh_scale", full: "lbh_full_first_pass" },
 ];
 function applyProjectSettings(long) {
-  if (!("lbh" in long) && !("audio_regen" in long)) return null;
+  if (!("lbh" in long)) return null;
   const lbh = long.lbh || null;
   const full = Boolean(lbh && lbh.first_pass === "full");
-  const regen = Boolean(long.audio_regen);
   let applied = false;
   for (const target of app.graph?._nodes || []) {
     const find = name => target.widgets?.find(w => w.name === name && !(target.inputs || []).some(i => i.name === name && i.link != null));
     for (const names of PROJECT_SETTING_WIDGETS) {
-      const lbhWidget = find(names.lbh), regenWidget = find(names.regen);
-      if (!lbhWidget && !regenWidget) continue;
+      const lbhWidget = find(names.lbh);
+      if (!lbhWidget) continue;
       window.DirectorPlusLbhToggle?.remember(target, full, Boolean(lbh));
-      if (lbhWidget) lbhWidget.value = Boolean(lbh);
+      lbhWidget.value = Boolean(lbh);
       if (lbh && find(names.scale)) find(names.scale).value = Number(lbh.scale);
       if (find(names.full)) find(names.full).value = full;
-      if (regenWidget) regenWidget.value = regen;
       applied = true;
       target.setDirtyCanvas?.(true, true);
       break;
     }
   }
   if (!applied) return null;
-  return `LBH ${lbh ? `${Number(lbh.scale)}x ${full ? "8+4" : "4+4"}` : "OFF"} · 오디오 재생성 ${regen ? "ON" : "OFF"}`;
+  return `LBH ${lbh ? `${Number(lbh.scale)}x ${full ? "8+4" : "4+4"}` : "OFF"}`;
 }
 
 function directors() { return (app.graph?._nodes || []).filter(n => n.comfyClass === "DirectorPlusTimeline" && n.__directorLong); }
@@ -1079,13 +1092,17 @@ function settingValue(name) {
 }
 
 // Cards only redraw on their own events; follow the Settings toggles so the card rows dim at once.
+// These switches are not part of the cache identity, so approved scenes stay valid; scenes that were
+// generated but not approved were made with the old value and are reset (they are regenerated anyway).
 setInterval(() => {
   const value = MASTER_SETTINGS.map(settingValue).join();
   for (const node of directors()) {
     const rt = node.__directorLong;
     if (rt.masterSettings === value) continue;
+    const first = rt.masterSettings === undefined;
     rt.masterSettings = value;
     node.__directorPlusH3Render?.();
+    if (!first && !rt.busy && !rt.running) rt.invalidateUnapproved?.().catch(() => {});
   }
 }, 500);
 

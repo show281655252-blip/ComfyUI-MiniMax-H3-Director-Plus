@@ -121,7 +121,8 @@ def encode_source_tail(path, width, height, count, vae, audio_vae):
 
     return {"samples": comfy.nested_tensor.NestedTensor((video_latent, audio_latent))}
 
-def prepare_state(guide):
+def prepare_state(guide, previous=None):
+    """previous: audio_regen / derope as recorded by the last run, before this run overwrote them."""
 
     state = copy.deepcopy(guide["long_video"])
     if state.get("source_mode_enabled") is False:
@@ -135,14 +136,19 @@ def prepare_state(guide):
     signature = json.dumps([source_key, guide["width"], guide["height"], state.get("context_length", "22")])
     if state.get("lbh"):
         signature = json.dumps([source_key, guide["width"], guide["height"], state.get("context_length", "22"), state["lbh"]])
-    if state.get("audio_regen"):
-        signature = json.dumps([signature, state["audio_regen"]])
-    if state.get("ref_video_resolution"):
-        signature = json.dumps([signature, state["ref_video_resolution"]])
-    if state.get("derope"):
-        signature = json.dumps([signature, state["derope"]])
 
-    owner = "director_" + state["project_id"] + "_" + hashlib.sha256(signature.encode()).hexdigest()[:12]
+    # Audio regen and Motion Lab are decided per scene (Settings switch + scene card), so they are not part
+    # of the cache identity: changing them never discards approved scenes.
+    owner = owner_for(state, signature)
+    # Projects generated before that carry the old identity (it included the audio regen / Motion Lab
+    # values of their runs). Keep using it while the stored identity still matches, so their caches survive.
+    legacy = state.get("owner_legacy") or previous or {}
+    legacy_owner = owner_for(state, signature, legacy.get("audio_regen"), legacy.get("derope"))
+    if state.get("cache_owner") == legacy_owner and legacy_owner != owner:
+        owner = legacy_owner
+        state["owner_legacy"] = {"audio_regen": legacy.get("audio_regen"), "derope": legacy.get("derope")}
+    else:
+        state.pop("owner_legacy", None)
 
     clips = state.get("clips", [])
 
@@ -178,31 +184,41 @@ def prepare_state(guide):
 
     return state, path
 
-def describe_settings(lbh, audio_regen):
+def owner_for(state, signature, audio_regen=None, derope=None):
+    """Cache identity of a project. audio_regen / derope only matter for projects made before they
+    were taken out of the identity (see prepare_state); new projects always pass None."""
+    if audio_regen:
+        signature = json.dumps([signature, audio_regen])
+    if state.get("ref_video_resolution"):
+        signature = json.dumps([signature, state["ref_video_resolution"]])
+    if derope:
+        signature = json.dumps([signature, derope])
+    return "director_" + state["project_id"] + "_" + hashlib.sha256(signature.encode()).hexdigest()[:12]
+
+
+def describe_settings(lbh):
     if lbh:
-        lbh_text = f"LBH {lbh['scale']:g}x" + (" 8+4" if director_lbh.full_first_pass(lbh) else " 4+4")
-    else:
-        lbh_text = "LBH OFF"
-    return f"{lbh_text}, 오디오 재생성 {'ON' if audio_regen else 'OFF'}"
+        return f"LBH {lbh['scale']:g}x" + (" 8+4" if director_lbh.full_first_pass(lbh) else " 4+4")
+    return "LBH OFF"
 
 
-def guard_settings_change(previous, lbh, audio_regen):
-    """Refuse to silently throw away approved scenes when LBH/audio-regen settings changed.
+def guard_settings_change(previous, lbh):
+    """Refuse to silently throw away approved scenes when the LBH settings changed.
 
-    These settings are part of the cache identity, so a mismatch (typically after loading
-    a .ext made with other Settings) would regenerate every approved scene from scratch.
+    LBH changes the output size and is part of the cache identity, so a mismatch (typically after
+    loading a .ext made with other Settings) would regenerate every approved scene from scratch.
     Only states that recorded the settings of their last run are checked.
     """
-    if "lbh" not in previous and "audio_regen" not in previous:
+    if "lbh" not in previous:
         return
     if not any(c.get("validated") for c in previous.get("clips", [])):
         return
-    before = (previous.get("lbh"), previous.get("audio_regen"))
-    if before == (lbh, audio_regen):
+    before = previous.get("lbh")
+    if before == lbh:
         return
     raise ValueError(
-        "Director long video: 승인된 장면이 있는 프로젝트의 생성 설정이 달라졌습니다 — "
-        f"프로젝트: {describe_settings(*before)} / 지금 Settings: {describe_settings(lbh, audio_regen)}. "
+        "Director long video: 승인된 장면이 있는 프로젝트의 LBH 설정이 달라졌습니다 — "
+        f"프로젝트: {describe_settings(before)} / 지금 Settings: {describe_settings(lbh)}. "
         "이대로 생성하면 승인된 장면을 모두 다시 만듭니다. Settings를 프로젝트 설정으로 되돌리거나, "
         "새 설정으로 다시 만들려면 장면 승인을 해제한 뒤 생성하세요.")
 
@@ -277,7 +293,8 @@ class DirectorPlusGenerate:
         guide["long_video"] = copy.deepcopy(guide["long_video"])
         lbh = director_lbh.settings(lbh_enabled, lbh_scale, lbh_model_name, lbh_full_first_pass)
         audio_regen = director_audio_regen.settings(audio_regen_enabled, audio_regen_model)
-        guard_settings_change(guide["long_video"], lbh, audio_regen)
+        guard_settings_change(guide["long_video"], lbh)
+        previous = {"audio_regen": guide["long_video"].get("audio_regen"), "derope": guide["long_video"].get("derope")}
         ref_resolution = guide.get("ref_video_resolution", [])
         if guide["long_video"].get("ref_video_resolution", []) != ref_resolution and any(
             clip.get("validated") for clip in guide["long_video"].get("clips", [])
@@ -287,10 +304,6 @@ class DirectorPlusGenerate:
         derope = director_derope.settings(derope_enabled)
         if derope:
             director_derope.check_installed()
-        if guide["long_video"].get("derope") != derope and any(
-            clip.get("validated") for clip in guide["long_video"].get("clips", [])
-        ):
-            raise ValueError("Director: Motion Lab(de-rope) 설정이 바뀌었습니다. 기존 설정으로 되돌리거나 장면 승인을 모두 해제한 뒤 다시 생성하세요.")
         guide["long_video"]["derope"] = derope
         if lbh and len(sigmas) < 6:
             raise ValueError("Director LBH needs at least 5 sampling steps (base + final 4-step refine).")
@@ -299,7 +312,7 @@ class DirectorPlusGenerate:
 
         guide["width"], guide["height"] = _manual_effective_resolution(guide["width"], guide["height"])
 
-        state, path = prepare_state(guide)
+        state, path = prepare_state(guide, previous)
 
         owner = state["cache_owner"]
 

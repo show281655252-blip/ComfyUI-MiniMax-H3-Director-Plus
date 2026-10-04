@@ -22,12 +22,8 @@ def project_owner(state, widgets):
     signature = json.dumps([None, width, height, state.get("context_length", "22")])
     if state.get("lbh"):
         signature = json.dumps([None, width, height, state.get("context_length", "22"), state["lbh"]])
-    if state.get("audio_regen"):
-        signature = json.dumps([signature, state["audio_regen"]])
     if state.get("ref_video_resolution"):
         signature = json.dumps([signature, state["ref_video_resolution"]])
-    if state.get("derope"):
-        signature = json.dumps([signature, state["derope"]])
     return "director_" + state["project_id"] + "_" + hashlib.sha256(signature.encode()).hexdigest()[:12]
 
 
@@ -131,6 +127,7 @@ def restore_project(path):
             clip["use_external_prompt"] = originals[clip["id"]].get("use_external_prompt", False)
         long["clips"] = restored
         long["cache_owner"] = owner
+        long.pop("owner_legacy", None)
         if "cache/chain.preview.mp4" in archive.namelist():
             preview = Path(folder_paths.get_temp_directory()) / f"director_project_{long['project_id']}.mp4"
             preview.parent.mkdir(parents=True, exist_ok=True)
