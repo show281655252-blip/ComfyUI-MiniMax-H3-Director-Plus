@@ -915,8 +915,8 @@
         false,
         1.5,
         true,
-        true,
-        true,
+        false,
+        false,
         448,
         448
       ],
@@ -938,8 +938,8 @@
         "lbh_latent_upscale_enabled": false,
         "lbh_latent_upscale_scale": 1.5,
         "audio_regen_enabled": true,
-        "face_refine_enabled": true,
-        "derope_enabled": true,
+        "face_refine_enabled": false,
+        "derope_enabled": false,
         "director_width": 448,
         "director_height": 448
       },
