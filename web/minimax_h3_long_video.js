@@ -843,10 +843,10 @@ export function renderLongVideo(node, state, emit) {
     };
     sceneSwitch("audio_regen", "🔊 오디오 재생성", "audio_regen_enabled", "🔊 오디오 재생성",
       "ON: 이 장면의 소리를 30스텝으로 다시 만들어 잡음을 줄입니다(장면당 약 1~2분). OFF: 1차 생성 소리를 그대로 씁니다.");
-    sceneSwitch("derope", "🌀 모션랩 (빠른 동작 보정)", "derope_enabled", "🌀 Motion Lab (de-rope)",
-      "ON: 이 장면의 빠른 동작 구간을 늘려 다시 생성해 뭉개짐을 줄입니다(시간 약 3배). OFF: 이 장면은 그대로 생성합니다.");
     sceneSwitch("face_refine", "🙂 얼굴 다듬기", "face_refine_enabled", "🙂 얼굴 다듬기",
       "ON: 이 장면의 얼굴을 찾아 크게 잘라 다시 그린 뒤 붙입니다. 얼굴이 작거나 흐트러진 장면에 효과가 크고, 이미 깔끔한 얼굴은 조금 부드러워질 수 있습니다(장면당 샘플링 한 번 추가). 얼굴이 안 보이는 장면은 그대로 둡니다. OFF: 그대로 생성합니다.");
+    sceneSwitch("derope", "🌀 모션랩 (빠른 동작 보정)", "derope_enabled", "🌀 Motion Lab (de-rope)",
+      "ON: 이 장면의 빠른 동작 구간을 늘려 다시 생성해 뭉개짐을 줄입니다(시간 약 3배). OFF: 이 장면은 그대로 생성합니다.");
 
     const foot = element("div", null, card); foot.className = "dl-card-row";
     const openGroup = groups.find(g => i >= g.a && i <= g.b && isOpen(g));
