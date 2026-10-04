@@ -1,4 +1,4 @@
-# Director Plus 0.2.0a2
+# Director Plus 1.0.0
 
 This standalone integration contains a maintained subset of upstream source code. It does not import or modify the installed DaSiWa or Extender packages. Upstream Python module structure is retained inside `director/` and `engine/` so that fixes remain reviewable.
 
