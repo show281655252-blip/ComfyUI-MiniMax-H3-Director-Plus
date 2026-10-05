@@ -4856,7 +4856,8 @@
                 "name": "value",
                 "type": "*",
                 "links": [
-                  6492
+                  5845,
+                  6499
                 ]
               }
             ],
@@ -5356,7 +5357,8 @@
                 "name": "value",
                 "type": "*",
                 "links": [
-                  6494
+                  5846,
+                  6500
                 ]
               }
             ],
@@ -7528,118 +7530,6 @@
             "bgcolor": "#20252d"
           },
           {
-            "id": 2941,
-            "type": "MiniMaxLowVRAMAttention",
-            "pos": [
-              1740,
-              550
-            ],
-            "size": [
-              410,
-              130
-            ],
-            "flags": {},
-            "order": 75,
-            "mode": 0,
-            "inputs": [
-              {
-                "localized_name": "model",
-                "name": "model",
-                "type": "MODEL",
-                "link": 6492
-              },
-              {
-                "localized_name": "head_chunks",
-                "name": "head_chunks",
-                "type": "INT",
-                "widget": {
-                  "name": "head_chunks"
-                },
-                "link": null
-              }
-            ],
-            "outputs": [
-              {
-                "localized_name": "model",
-                "name": "model",
-                "type": "MODEL",
-                "links": [
-                  5845,
-                  6499
-                ]
-              }
-            ],
-            "title": "FL2VA · Attention 4분할 · VRAM 절약",
-            "properties": {
-              "Node name for S&R": "MiniMaxLowVRAMAttention",
-              "cnr_id": "comfyui-kjnodes"
-            },
-            "widgets_values": [
-              4
-            ],
-            "widgets_values_named": {
-              "head_chunks": 4
-            },
-            "color": "#416e88",
-            "bgcolor": "#20252d"
-          },
-          {
-            "id": 2943,
-            "type": "MiniMaxLowVRAMAttention",
-            "pos": [
-              1740,
-              2750
-            ],
-            "size": [
-              410,
-              130
-            ],
-            "flags": {},
-            "order": 76,
-            "mode": 0,
-            "inputs": [
-              {
-                "localized_name": "model",
-                "name": "model",
-                "type": "MODEL",
-                "link": 6494
-              },
-              {
-                "localized_name": "head_chunks",
-                "name": "head_chunks",
-                "type": "INT",
-                "widget": {
-                  "name": "head_chunks"
-                },
-                "link": null
-              }
-            ],
-            "outputs": [
-              {
-                "localized_name": "model",
-                "name": "model",
-                "type": "MODEL",
-                "links": [
-                  5846,
-                  6500
-                ]
-              }
-            ],
-            "title": "Ref2VA · Attention 4분할 · VRAM 절약",
-            "properties": {
-              "Node name for S&R": "MiniMaxLowVRAMAttention",
-              "cnr_id": "comfyui-kjnodes"
-            },
-            "widgets_values": [
-              4
-            ],
-            "widgets_values_named": {
-              "head_chunks": 4
-            },
-            "color": "#695889",
-            "bgcolor": "#20252d"
-          },
-          {
             "id": 2946,
             "type": "ComfySwitchNode",
             "pos": [
@@ -8651,7 +8541,7 @@
           },
           {
             "id": 5845,
-            "origin_id": 2941,
+            "origin_id": 2816,
             "origin_slot": 0,
             "target_id": -20,
             "target_slot": 4,
@@ -8659,7 +8549,7 @@
           },
           {
             "id": 5846,
-            "origin_id": 2943,
+            "origin_id": 2817,
             "origin_slot": 0,
             "target_id": -20,
             "target_slot": 5,
@@ -9954,22 +9844,6 @@
             "type": "MODEL"
           },
           {
-            "id": 6492,
-            "origin_id": 2816,
-            "origin_slot": 0,
-            "target_id": 2941,
-            "target_slot": 0,
-            "type": "MODEL"
-          },
-          {
-            "id": 6494,
-            "origin_id": 2817,
-            "origin_slot": 0,
-            "target_id": 2943,
-            "target_slot": 0,
-            "type": "MODEL"
-          },
-          {
             "id": 6498,
             "origin_id": -10,
             "origin_slot": 12,
@@ -9979,7 +9853,7 @@
           },
           {
             "id": 6499,
-            "origin_id": 2941,
+            "origin_id": 2816,
             "origin_slot": 0,
             "target_id": 2946,
             "target_slot": 1,
@@ -9987,7 +9861,7 @@
           },
           {
             "id": 6500,
-            "origin_id": 2943,
+            "origin_id": 2817,
             "origin_slot": 0,
             "target_id": 2946,
             "target_slot": 0,
