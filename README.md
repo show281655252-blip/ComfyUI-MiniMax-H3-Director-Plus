@@ -5,7 +5,7 @@ ComfyUI용 MiniMax H3 **장면 타임라인 + 긴 영상(Ref2VA + Motion Context
 
 원본 DaSiWa·Extender 파일을 수정하지 않는 독립 노드이며, 필요한 원본 코드 일부를 라이선스 고지와 함께 내부에 포함합니다.
 
-> 최신 변경은 `main` 브랜치 기준입니다(태그 `v0.2.0a2` 이후 기능이 많이 추가됨). 아직 확인하지 않은 범위는 [검증 현황](#검증-현황)을 보세요.
+> 현재 버전은 1.0.0이며 `main` 브랜치 기준입니다(태그·Release는 만들지 않았습니다). 아직 확인하지 않은 범위는 [검증 현황](#검증-현황)을 보세요.
 
 ## 주요 기능
 
@@ -14,7 +14,9 @@ ComfyUI용 MiniMax H3 **장면 타임라인 + 긴 영상(Ref2VA + Motion Context
 - **프로젝트 저장 (.ext)**: 장면 설정·레퍼런스·생성 캐시를 함께 보관/복원
 - **프롬프트 작성 창**: PromptDirector + Ollama 기반 작성·수정·대화 다듬기, 영상 레퍼런스 분석
 - **장면별 선택 기능** (Settings 스위치 + 장면 카드 ON/OFF): 오디오 재생성 · 얼굴 다듬기 · Motion Lab(de-rope)
+- **단일 영상 후처리**: 얼굴 다듬기·Motion Lab을 단일 영상(FL2VA·I2VA·Ref2VA)에도 Settings 스위치로 적용
 - **LBH 업스케일**: 낮은 해상도로 만든 뒤 확대하고 마지막 스텝을 고해상도에서 보정
+- **Chunk FeedForward 스위치**: 예제 워크플로우 Settings에서 VRAM 절약용 FeedForward 분할을 켜고 끔
 - **레퍼런스 영상 해상도 선택**: Orig / 0.83 / 0.65 / 0.52MP
 
 ## 설치
@@ -44,7 +46,9 @@ PyTorch/torchaudio를 다른 버전으로 바꾸지 말고 ComfyUI 배포본과 
 
 | 기능 | 필요한 것 |
 |---|---|
-| LBH 업스케일 | `Comfyui_Minimax_h3_latent_Upscaler` + `models/latent_upscale_models/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors` |
+| 예제 워크플로우 | [DaSiWa Nodes](https://github.com/darksidewalker/ComfyUI-DaSiWa-Nodes), [KJNodes](https://github.com/kijai/ComfyUI-KJNodes), [Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use), [LoraManager](https://github.com/willmiao/ComfyUI-Lora-Manager), [PromptDirector](https://github.com/Bokuwako/ComfyUI-MinimaxH3-PromptDirector)(KillSwitch 노드). Attention 기본값은 Kitchen(INT8)이라 ComfyUI에 `comfy-kitchen`이 있어야 합니다(없으면 Settings에서 다른 Attention을 고르세요). |
+| LBH 업스케일 | `Comfyui_Minimax_h3_latent_Upscaler`, [h3-latent-upscaler](https://github.com/rockerBOO/h3-latent-upscaler) + `models/latent_upscale_models/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors` |
+| Chunk FeedForward | KJNodes (`MiniMaxChunkFeedForward`) |
 | Motion Lab | [ComfyUI-MAINodes](https://github.com/matlowai/ComfyUI-MAINodes) |
 | 얼굴 다듬기 | [ComfyUI-H3-FaceRefine](https://github.com/Carasibana/ComfyUI-H3-FaceRefine) + `models/ultralytics/bbox/face_yolov8m.pt` |
 | 프롬프트 작성 창 | [ComfyUI-MinimaxH3-PromptDirector](https://github.com/Bokuwako/ComfyUI-MinimaxH3-PromptDirector) + Ollama |
@@ -61,7 +65,7 @@ PyTorch/torchaudio를 다른 버전으로 바꾸지 말고 ComfyUI 배포본과 
 
 ## 사용법
 
-1. `workflows/Director_Plus_Example.json`을 불러옵니다. 워크플로우 안의 메모 노드에 설치할 커스텀 노드와 첫 실행 순서가 적혀 있습니다. Settings에서 모델 파일을 실제 파일로 고르세요(터보 LoRA는 LoraManager 로더에서 선택).
+1. `workflows/Director_Plus_Example.json`을 불러옵니다. 워크플로우 안의 메모 노드에 설치할 커스텀 노드와 첫 실행 순서가 적혀 있고, 「선택 기능 설명」·「긴 영상 사용법」 메모에 각 기능의 설명이 있습니다. Settings에서 모델 파일을 실제 파일로 고르세요(터보 LoRA는 LoraManager 로더에서 선택).
 2. 장면 카드에 프롬프트를 쓰고 **생성 / 실행**합니다.
 3. 마음에 들면 카드의 **승인** 체크박스를 누릅니다. 다음 장면이 자동 선택되며, 다시 **생성 / 실행**합니다. 마지막 장면 뒤에 이어 가려면 **+ 장면 추가**를 누릅니다.
 
@@ -123,6 +127,10 @@ PyTorch/torchaudio를 다른 버전으로 바꾸지 말고 ComfyUI 배포본과 
 - **단일 영상**: 기존 `MiniMaxH3ConditioningUpscale`을 `Director Plus · Conditioning Match Latent`로 교체하고 `conditioning`, 확대 전 `base_latent`, 실제 LBH 출력 `target_latent`, `vae`, Director `guide`를 연결하세요. 실제 출력 격자에 맞추므로 반올림 차이로 인한 토큰 불일치를 막습니다.
 - 다른 호환 모델은 `lbh_model_name`에 지정합니다.
 
+## Chunk FeedForward (VRAM 절약)
+
+예제 워크플로우 Settings의 **🧩 Chunk FeedForward (4분할)** (기본 OFF)은 KJNodes의 `MiniMaxChunkFeedForward`(4분할, 토큰 4096 초과일 때만)를 켜고 끄는 스위치입니다. 모델 안쪽 FeedForward를 토큰 단위로 나눠 계산해서 최대 VRAM 사용량을 줄이며, 켜면 단일 영상·긴 영상·LBH·단일 영상 후처리가 쓰는 생성 모델에 적용됩니다. **오디오 재생성 모델에는 적용하지 않습니다.** 꺼져 있으면 FFN 노드는 평가되지 않습니다. 저사양 GPU에서 OOM이 날 때 켜 보세요.
+
 ## 레퍼런스 영상 해상도
 
 영상 항목의 V/A/V+A 옆에서 Orig 또는 0.83/0.65/0.52MP를 고릅니다. 비율을 유지하며 32픽셀 격자로 줄이고 작은 영상은 키우지 않습니다. 오디오·프레임 수·출력 해상도는 바뀌지 않지만 세부 표현은 달라질 수 있습니다. A(소리만)에서는 숨겨집니다. 설정은 워크플로우와 `.ext`에 저장되며, 긴 영상에서 바꾸려면 기존 장면 승인을 해제해야 합니다(캐시는 삭제하지 않음).
@@ -152,9 +160,11 @@ Windows ComfyUI Portable + RTX 4090에서 확인한 것입니다.
 - 긴 영상: 2장면 승인 → Motion Context → 합치기 → `.ext` 저장·복원 → 캐시 재실행, 6장면(5~7초, 640×864 → LBH 960×1280) 연속 생성, Full Batch 합치기(재디코딩 없이 이어 붙임)
 - LBH: 단일 영상(I2VA·Ref2VA)·긴 영상에서 배경 격자·잔상 제거 확인
 - 오디오 재생성·Motion Lab·얼굴 다듬기: 장면 카드별 ON/OFF와 실제 해상도 1~2장면 생성 확인
+- 단일 영상 Motion Lab·얼굴 다듬기: Ref2VA·I2VA 800×1088 5초 생성 확인(소리는 후처리가 바꾸지 않음)
+- Chunk FeedForward: 켜기/끄기 결과(영상·소리)가 동일함을 LBH 끈 800×1088과 LBH 켠 640×864 → 960×1280 모두에서 확인
 - 레퍼런스 영상 해상도: 800×1088 → 608×832, `.ext` 값 유지와 승인 상태 경고 확인
 
-아직 확인하지 않은 것: LBH와 얼굴 다듬기를 함께 켠 경우, 대사 장면의 입 모양, 7장면 이상, Linux/macOS. 소리와 화질의 우열은 주관적이라 청취·시청 평가는 하지 않았습니다.
+아직 확인하지 않은 것: LBH와 얼굴 다듬기를 함께 켠 경우, 대사 장면의 입 모양, 7장면 이상, 저사양 GPU에서 Chunk FeedForward의 VRAM 절감 효과, 예제 워크플로우를 새 ComfyUI에 설치해 여는 과정, Linux/macOS. 소리와 화질의 우열은 주관적이라 청취·시청 평가는 하지 않았습니다.
 
 ## 라이선스
 
