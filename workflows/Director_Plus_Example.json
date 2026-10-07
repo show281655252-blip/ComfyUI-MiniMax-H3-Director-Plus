@@ -1,8 +1,8 @@
 {
   "id": "1761d8b1-6f09-4970-85db-64231fb6746b",
   "revision": 0,
-  "last_node_id": 2950,
-  "last_link_id": 6514,
+  "last_node_id": 2960,
+  "last_link_id": 6560,
   "nodes": [
     {
       "id": 2678,
@@ -628,6 +628,15 @@
           "link": null
         },
         {
+          "label": "🧩 Chunk FeedForward (4분할)",
+          "name": "chunk_ffn_enabled",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "chunk_ffn_enabled"
+          },
+          "link": null
+        },
+        {
           "label": "unet_fl2va",
           "name": "unet_name",
           "type": "COMBO",
@@ -891,7 +900,8 @@
             "switch": true,
             "lbh_latent_upscale_enabled": true,
             "lbh_latent_upscale_scale": true,
-            "attention_index": true
+            "attention_index": true,
+            "chunk_ffn_enabled": true
           },
           "version": "7.8",
           "input_ue_unconnectable": {}
@@ -905,6 +915,7 @@
         12,
         3,
         2,
+        false,
         "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
         "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
         "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
@@ -928,6 +939,7 @@
         "shift_video": 12,
         "shift_audio": 3,
         "attention_index": 2,
+        "chunk_ffn_enabled": false,
         "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
         "unet_name_1": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
         "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
@@ -1582,7 +1594,7 @@
       2693,
       6,
       1512,
-      12,
+      13,
       "BOOLEAN"
     ],
     [
@@ -1590,7 +1602,7 @@
       2678,
       1,
       1512,
-      13,
+      14,
       "CLIP"
     ],
     [
@@ -1598,7 +1610,7 @@
       2693,
       0,
       1512,
-      14,
+      15,
       "MINIMAX_H3_DIRECTOR_GUIDE"
     ],
     [
@@ -1606,7 +1618,7 @@
       2693,
       1,
       1512,
-      16,
+      17,
       "INT"
     ],
     [
@@ -1614,7 +1626,7 @@
       2693,
       8,
       1512,
-      19,
+      20,
       "FLOAT"
     ],
     [
@@ -1622,7 +1634,7 @@
       2693,
       3,
       1512,
-      23,
+      24,
       "INT"
     ],
     [
@@ -1630,7 +1642,7 @@
       2693,
       4,
       1512,
-      24,
+      25,
       "INT"
     ],
     [
@@ -1670,7 +1682,7 @@
       2949,
       0,
       1512,
-      15,
+      16,
       "MODEL"
     ]
   ],
@@ -1707,8 +1719,8 @@
         "version": 1,
         "state": {
           "lastGroupId": 236,
-          "lastNodeId": 2956,
-          "lastLinkId": 6552,
+          "lastNodeId": 2960,
+          "lastLinkId": 6560,
           "lastRerouteId": 0
         },
         "revision": 33,
@@ -1836,6 +1848,20 @@
             ]
           },
           {
+            "id": "chunk-feedforward-enabled-toggle",
+            "name": "chunk_ffn_enabled",
+            "type": "BOOLEAN",
+            "label": "🧩 Chunk FeedForward (4분할)",
+            "linkIds": [
+              6556,
+              6560
+            ],
+            "pos": [
+              -298.19921875,
+              164
+            ]
+          },
+          {
             "id": "21950901-51ed-4712-ae4d-3324c77f1ee1",
             "name": "unet_name",
             "type": "COMBO",
@@ -1845,7 +1871,7 @@
             "label": "unet_fl2va",
             "pos": [
               -298.19921875,
-              164
+              184
             ]
           },
           {
@@ -1858,7 +1884,7 @@
             "label": "unet_ref2va",
             "pos": [
               -298.19921875,
-              184
+              204
             ]
           },
           {
@@ -1870,7 +1896,7 @@
             ],
             "pos": [
               -298.19921875,
-              204
+              224
             ]
           },
           {
@@ -1883,7 +1909,7 @@
             "label": "vae_video",
             "pos": [
               -298.19921875,
-              224
+              244
             ]
           },
           {
@@ -1896,7 +1922,7 @@
             "label": "vae_audio",
             "pos": [
               -298.19921875,
-              244
+              264
             ]
           },
           {
@@ -1910,7 +1936,7 @@
             ],
             "pos": [
               -298.19921875,
-              264
+              284
             ]
           },
           {
@@ -1924,7 +1950,7 @@
             "label": "clip_fromLora",
             "pos": [
               -298.19921875,
-              284
+              304
             ]
           },
           {
@@ -1942,7 +1968,7 @@
             ],
             "pos": [
               -298.19921875,
-              304
+              324
             ]
           },
           {
@@ -1958,7 +1984,7 @@
             "label": "preview",
             "pos": [
               -298.19921875,
-              324
+              344
             ]
           },
           {
@@ -1973,7 +1999,7 @@
             "label": "duration_from_director",
             "pos": [
               -298.19921875,
-              344
+              364
             ]
           },
           {
@@ -1992,7 +2018,7 @@
             "label": "🧬 LBH Current + 4-Step Refine",
             "pos": [
               -298.19921875,
-              364
+              384
             ]
           },
           {
@@ -2006,7 +2032,7 @@
             "label": "↳ LBH Scale",
             "pos": [
               -298.19921875,
-              384
+              404
             ]
           },
           {
@@ -2019,7 +2045,7 @@
             "label": "FPS from Director",
             "pos": [
               -298.19921875,
-              404
+              424
             ]
           },
           {
@@ -2034,7 +2060,7 @@
             "label": "🔊 오디오 재생성 (기본 모델 30스텝·0.5)",
             "pos": [
               -298.19921875,
-              424
+              444
             ]
           },
           {
@@ -2049,7 +2075,7 @@
             "label": "🙂 얼굴 다듬기",
             "pos": [
               -298.19921875,
-              444
+              464
             ]
           },
           {
@@ -2064,7 +2090,7 @@
             "label": "🌀 Motion Lab (de-rope · 느림)",
             "pos": [
               -298.19921875,
-              464
+              484
             ]
           },
           {
@@ -2077,7 +2103,7 @@
             "label": "Width from Director",
             "pos": [
               -298.19921875,
-              484
+              504
             ]
           },
           {
@@ -2090,7 +2116,7 @@
             "label": "Height from Director",
             "pos": [
               -298.19921875,
-              504
+              524
             ]
           }
         ],
@@ -4856,8 +4882,9 @@
                 "name": "value",
                 "type": "*",
                 "links": [
-                  5845,
-                  6499
+                  6499,
+                  6553,
+                  6554
                 ]
               }
             ],
@@ -5357,8 +5384,9 @@
                 "name": "value",
                 "type": "*",
                 "links": [
-                  5846,
-                  6500
+                  6500,
+                  6557,
+                  6558
                 ]
               }
             ],
@@ -8150,6 +8178,220 @@
             ],
             "color": "#695889",
             "bgcolor": "#20252d"
+          },
+          {
+            "id": 2957,
+            "type": "MiniMaxChunkFeedForward",
+            "pos": [
+              2150,
+              310
+            ],
+            "size": [
+              340,
+              100
+            ],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "name": "model",
+                "type": "MODEL",
+                "link": 6553
+              }
+            ],
+            "outputs": [
+              {
+                "name": "model",
+                "type": "MODEL",
+                "links": [
+                  6555
+                ]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "MiniMaxChunkFeedForward",
+              "cnr_id": "comfyui-kjnodes",
+              "ver": "1.5.2"
+            },
+            "widgets_values": [
+              4,
+              4096
+            ],
+            "widgets_values_named": {
+              "chunks": 4,
+              "seq_threshold": 4096
+            },
+            "title": "FL2VA · Chunk FeedForward (4분할)",
+            "color": "#416e88",
+            "bgcolor": "#20252d"
+          },
+          {
+            "id": 2958,
+            "type": "ComfySwitchNode",
+            "pos": [
+              2550,
+              310
+            ],
+            "size": [
+              365,
+              100
+            ],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "title": "FL2VA · Chunk FeedForward 켜기/끄기",
+            "inputs": [
+              {
+                "name": "on_false",
+                "shape": 7,
+                "type": "MODEL",
+                "link": 6554
+              },
+              {
+                "name": "on_true",
+                "shape": 7,
+                "type": "MODEL",
+                "link": 6555
+              },
+              {
+                "name": "switch",
+                "type": "BOOLEAN",
+                "widget": {
+                  "name": "switch"
+                },
+                "link": 6556
+              }
+            ],
+            "outputs": [
+              {
+                "name": "output",
+                "type": "MODEL",
+                "links": [
+                  5845
+                ]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "ComfySwitchNode",
+              "cnr_id": "comfy-core",
+              "ver": "0.14.1"
+            },
+            "widgets_values": [
+              false
+            ],
+            "widgets_values_named": {
+              "switch": false
+            },
+            "color": "#416e88",
+            "bgcolor": "#20252d"
+          },
+          {
+            "id": 2959,
+            "type": "MiniMaxChunkFeedForward",
+            "pos": [
+              2150,
+              2510
+            ],
+            "size": [
+              340,
+              100
+            ],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [
+              {
+                "name": "model",
+                "type": "MODEL",
+                "link": 6557
+              }
+            ],
+            "outputs": [
+              {
+                "name": "model",
+                "type": "MODEL",
+                "links": [
+                  6559
+                ]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "MiniMaxChunkFeedForward",
+              "cnr_id": "comfyui-kjnodes",
+              "ver": "1.5.2"
+            },
+            "widgets_values": [
+              4,
+              4096
+            ],
+            "widgets_values_named": {
+              "chunks": 4,
+              "seq_threshold": 4096
+            },
+            "title": "Ref2VA · Chunk FeedForward (4분할)",
+            "color": "#695889",
+            "bgcolor": "#20252d"
+          },
+          {
+            "id": 2960,
+            "type": "ComfySwitchNode",
+            "pos": [
+              2550,
+              2510
+            ],
+            "size": [
+              365,
+              100
+            ],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "title": "Ref2VA · Chunk FeedForward 켜기/끄기",
+            "inputs": [
+              {
+                "name": "on_false",
+                "shape": 7,
+                "type": "MODEL",
+                "link": 6558
+              },
+              {
+                "name": "on_true",
+                "shape": 7,
+                "type": "MODEL",
+                "link": 6559
+              },
+              {
+                "name": "switch",
+                "type": "BOOLEAN",
+                "widget": {
+                  "name": "switch"
+                },
+                "link": 6560
+              }
+            ],
+            "outputs": [
+              {
+                "name": "output",
+                "type": "MODEL",
+                "links": [
+                  5846
+                ]
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "ComfySwitchNode",
+              "cnr_id": "comfy-core",
+              "ver": "0.14.1"
+            },
+            "widgets_values": [
+              false
+            ],
+            "widgets_values_named": {
+              "switch": false
+            },
+            "color": "#695889",
+            "bgcolor": "#20252d"
           }
         ],
         "groups": [
@@ -8494,7 +8736,7 @@
           {
             "id": 5828,
             "origin_id": -10,
-            "origin_slot": 15,
+            "origin_slot": 16,
             "target_id": 2590,
             "target_slot": 0,
             "type": "MODEL"
@@ -8541,7 +8783,7 @@
           },
           {
             "id": 5845,
-            "origin_id": 2816,
+            "origin_id": 2958,
             "origin_slot": 0,
             "target_id": -20,
             "target_slot": 4,
@@ -8549,7 +8791,7 @@
           },
           {
             "id": 5846,
-            "origin_id": 2817,
+            "origin_id": 2960,
             "origin_slot": 0,
             "target_id": -20,
             "target_slot": 5,
@@ -8558,7 +8800,7 @@
           {
             "id": 5847,
             "origin_id": -10,
-            "origin_slot": 12,
+            "origin_slot": 13,
             "target_id": 2677,
             "target_slot": 2,
             "type": "BOOLEAN"
@@ -8566,7 +8808,7 @@
           {
             "id": 5848,
             "origin_id": -10,
-            "origin_slot": 12,
+            "origin_slot": 13,
             "target_id": 2675,
             "target_slot": 2,
             "type": "BOOLEAN"
@@ -8574,7 +8816,7 @@
           {
             "id": 5855,
             "origin_id": -10,
-            "origin_slot": 15,
+            "origin_slot": 16,
             "target_id": 2679,
             "target_slot": 0,
             "type": "MODEL"
@@ -8646,7 +8888,7 @@
           {
             "id": 5880,
             "origin_id": -10,
-            "origin_slot": 15,
+            "origin_slot": 16,
             "target_id": 2691,
             "target_slot": 0,
             "type": "MODEL"
@@ -8662,7 +8904,7 @@
           {
             "id": 5882,
             "origin_id": -10,
-            "origin_slot": 15,
+            "origin_slot": 16,
             "target_id": 2692,
             "target_slot": 0,
             "type": "MODEL"
@@ -8710,7 +8952,7 @@
           {
             "id": 5888,
             "origin_id": -10,
-            "origin_slot": 7,
+            "origin_slot": 8,
             "target_id": 2586,
             "target_slot": 0,
             "type": "COMBO"
@@ -8718,7 +8960,7 @@
           {
             "id": 5889,
             "origin_id": -10,
-            "origin_slot": 8,
+            "origin_slot": 9,
             "target_id": 2588,
             "target_slot": 0,
             "type": "COMBO"
@@ -8726,7 +8968,7 @@
           {
             "id": 5890,
             "origin_id": -10,
-            "origin_slot": 9,
+            "origin_slot": 10,
             "target_id": 2587,
             "target_slot": 0,
             "type": "COMBO"
@@ -8734,7 +8976,7 @@
           {
             "id": 5891,
             "origin_id": -10,
-            "origin_slot": 10,
+            "origin_slot": 11,
             "target_id": 2584,
             "target_slot": 0,
             "type": "COMBO"
@@ -8742,7 +8984,7 @@
           {
             "id": 5892,
             "origin_id": -10,
-            "origin_slot": 11,
+            "origin_slot": 12,
             "target_id": 2585,
             "target_slot": 0,
             "type": "COMBO"
@@ -8774,7 +9016,7 @@
           {
             "id": 5905,
             "origin_id": -10,
-            "origin_slot": 14,
+            "origin_slot": 15,
             "target_id": 2700,
             "target_slot": 2,
             "type": "MINIMAX_H3_DIRECTOR_GUIDE"
@@ -8798,7 +9040,7 @@
           {
             "id": 5909,
             "origin_id": -10,
-            "origin_slot": 13,
+            "origin_slot": 14,
             "target_id": 2701,
             "target_slot": 0,
             "type": "CLIP"
@@ -8814,7 +9056,7 @@
           {
             "id": 5911,
             "origin_id": -10,
-            "origin_slot": 14,
+            "origin_slot": 15,
             "target_id": 2701,
             "target_slot": 2,
             "type": "MINIMAX_H3_DIRECTOR_GUIDE"
@@ -8870,7 +9112,7 @@
           {
             "id": 6046,
             "origin_id": -10,
-            "origin_slot": 16,
+            "origin_slot": 17,
             "target_id": 2756,
             "target_slot": 2,
             "type": "INT"
@@ -8902,7 +9144,7 @@
           {
             "id": 6073,
             "origin_id": -10,
-            "origin_slot": 17,
+            "origin_slot": 18,
             "target_id": 2767,
             "target_slot": 2,
             "type": "BOOLEAN"
@@ -8990,7 +9232,7 @@
           {
             "id": 6090,
             "origin_id": -10,
-            "origin_slot": 17,
+            "origin_slot": 18,
             "target_id": 2774,
             "target_slot": 2,
             "type": "BOOLEAN"
@@ -9022,7 +9264,7 @@
           {
             "id": 6095,
             "origin_id": -10,
-            "origin_slot": 17,
+            "origin_slot": 18,
             "target_id": 2776,
             "target_slot": 2,
             "type": "BOOLEAN"
@@ -9110,7 +9352,7 @@
           {
             "id": 6112,
             "origin_id": -10,
-            "origin_slot": 17,
+            "origin_slot": 18,
             "target_id": 2783,
             "target_slot": 2,
             "type": "BOOLEAN"
@@ -9118,7 +9360,7 @@
           {
             "id": 6127,
             "origin_id": -10,
-            "origin_slot": 18,
+            "origin_slot": 19,
             "target_id": 2802,
             "target_slot": 0,
             "type": "FLOAT"
@@ -9246,7 +9488,7 @@
           {
             "id": 6261,
             "origin_id": -10,
-            "origin_slot": 23,
+            "origin_slot": 24,
             "target_id": 2756,
             "target_slot": 0,
             "type": "INT"
@@ -9254,7 +9496,7 @@
           {
             "id": 6264,
             "origin_id": -10,
-            "origin_slot": 24,
+            "origin_slot": 25,
             "target_id": 2756,
             "target_slot": 1,
             "type": "INT"
@@ -9262,7 +9504,7 @@
           {
             "id": 6401,
             "origin_id": -10,
-            "origin_slot": 14,
+            "origin_slot": 15,
             "target_id": 2910,
             "target_slot": 0,
             "type": "MINIMAX_H3_DIRECTOR_GUIDE"
@@ -9278,7 +9520,7 @@
           {
             "id": 6403,
             "origin_id": -10,
-            "origin_slot": 13,
+            "origin_slot": 14,
             "target_id": 2910,
             "target_slot": 2,
             "type": "CLIP"
@@ -9342,7 +9584,7 @@
           {
             "id": 6421,
             "origin_id": -10,
-            "origin_slot": 17,
+            "origin_slot": 18,
             "target_id": 2910,
             "target_slot": 8,
             "type": "BOOLEAN"
@@ -9350,7 +9592,7 @@
           {
             "id": 6422,
             "origin_id": -10,
-            "origin_slot": 18,
+            "origin_slot": 19,
             "target_id": 2910,
             "target_slot": 9,
             "type": "FLOAT"
@@ -9398,7 +9640,7 @@
           {
             "id": 6428,
             "origin_id": -10,
-            "origin_slot": 14,
+            "origin_slot": 15,
             "target_id": 2827,
             "target_slot": 4,
             "type": "MINIMAX_H3_DIRECTOR_GUIDE"
@@ -9414,7 +9656,7 @@
           {
             "id": 6430,
             "origin_id": -10,
-            "origin_slot": 14,
+            "origin_slot": 15,
             "target_id": 2828,
             "target_slot": 4,
             "type": "MINIMAX_H3_DIRECTOR_GUIDE"
@@ -9510,7 +9752,7 @@
           {
             "id": 6443,
             "origin_id": -10,
-            "origin_slot": 14,
+            "origin_slot": 15,
             "target_id": 2924,
             "target_slot": 4,
             "type": "MINIMAX_H3_DIRECTOR_GUIDE"
@@ -9598,7 +9840,7 @@
           {
             "id": 6454,
             "origin_id": -10,
-            "origin_slot": 20,
+            "origin_slot": 21,
             "target_id": 2929,
             "target_slot": 2,
             "type": "BOOLEAN"
@@ -9694,7 +9936,7 @@
           {
             "id": 6466,
             "origin_id": -10,
-            "origin_slot": 14,
+            "origin_slot": 15,
             "target_id": 2933,
             "target_slot": 4,
             "type": "MINIMAX_H3_DIRECTOR_GUIDE"
@@ -9782,7 +10024,7 @@
           {
             "id": 6477,
             "origin_id": -10,
-            "origin_slot": 20,
+            "origin_slot": 21,
             "target_id": 2938,
             "target_slot": 2,
             "type": "BOOLEAN"
@@ -9830,7 +10072,7 @@
           {
             "id": 6490,
             "origin_id": -10,
-            "origin_slot": 20,
+            "origin_slot": 21,
             "target_id": 2910,
             "target_slot": 12,
             "type": "BOOLEAN"
@@ -9846,7 +10088,7 @@
           {
             "id": 6498,
             "origin_id": -10,
-            "origin_slot": 12,
+            "origin_slot": 13,
             "target_id": 2946,
             "target_slot": 2,
             "type": "BOOLEAN"
@@ -9878,7 +10120,7 @@
           {
             "id": 6507,
             "origin_id": -10,
-            "origin_slot": 19,
+            "origin_slot": 20,
             "target_id": 2947,
             "target_slot": 0,
             "type": "FLOAT"
@@ -9902,7 +10144,7 @@
           {
             "id": 6510,
             "origin_id": -10,
-            "origin_slot": 22,
+            "origin_slot": 23,
             "target_id": 2910,
             "target_slot": 13,
             "type": "BOOLEAN"
@@ -9910,7 +10152,7 @@
           {
             "id": 6511,
             "origin_id": -10,
-            "origin_slot": 21,
+            "origin_slot": 22,
             "target_id": 2910,
             "target_slot": 14,
             "type": "BOOLEAN"
@@ -9974,7 +10216,7 @@
           {
             "id": 6517,
             "origin_id": -10,
-            "origin_slot": 17,
+            "origin_slot": 18,
             "target_id": 2951,
             "target_slot": 2,
             "type": "BOOLEAN"
@@ -10054,7 +10296,7 @@
           {
             "id": 6527,
             "origin_id": -10,
-            "origin_slot": 16,
+            "origin_slot": 17,
             "target_id": 2952,
             "target_slot": 5,
             "type": "INT"
@@ -10078,7 +10320,7 @@
           {
             "id": 6530,
             "origin_id": -10,
-            "origin_slot": 22,
+            "origin_slot": 23,
             "target_id": 2952,
             "target_slot": 8,
             "type": "BOOLEAN"
@@ -10102,7 +10344,7 @@
           {
             "id": 6533,
             "origin_id": -10,
-            "origin_slot": 21,
+            "origin_slot": 22,
             "target_id": 2953,
             "target_slot": 6,
             "type": "BOOLEAN"
@@ -10126,7 +10368,7 @@
           {
             "id": 6536,
             "origin_id": -10,
-            "origin_slot": 17,
+            "origin_slot": 18,
             "target_id": 2954,
             "target_slot": 2,
             "type": "BOOLEAN"
@@ -10206,7 +10448,7 @@
           {
             "id": 6546,
             "origin_id": -10,
-            "origin_slot": 16,
+            "origin_slot": 17,
             "target_id": 2955,
             "target_slot": 5,
             "type": "INT"
@@ -10230,7 +10472,7 @@
           {
             "id": 6549,
             "origin_id": -10,
-            "origin_slot": 22,
+            "origin_slot": 23,
             "target_id": 2955,
             "target_slot": 8,
             "type": "BOOLEAN"
@@ -10254,9 +10496,73 @@
           {
             "id": 6552,
             "origin_id": -10,
-            "origin_slot": 21,
+            "origin_slot": 22,
             "target_id": 2956,
             "target_slot": 6,
+            "type": "BOOLEAN"
+          },
+          {
+            "id": 6553,
+            "origin_id": 2816,
+            "origin_slot": 0,
+            "target_id": 2957,
+            "target_slot": 0,
+            "type": "MODEL"
+          },
+          {
+            "id": 6554,
+            "origin_id": 2816,
+            "origin_slot": 0,
+            "target_id": 2958,
+            "target_slot": 0,
+            "type": "MODEL"
+          },
+          {
+            "id": 6555,
+            "origin_id": 2957,
+            "origin_slot": 0,
+            "target_id": 2958,
+            "target_slot": 1,
+            "type": "MODEL"
+          },
+          {
+            "id": 6556,
+            "origin_id": -10,
+            "origin_slot": 7,
+            "target_id": 2958,
+            "target_slot": 2,
+            "type": "BOOLEAN"
+          },
+          {
+            "id": 6557,
+            "origin_id": 2817,
+            "origin_slot": 0,
+            "target_id": 2959,
+            "target_slot": 0,
+            "type": "MODEL"
+          },
+          {
+            "id": 6558,
+            "origin_id": 2817,
+            "origin_slot": 0,
+            "target_id": 2960,
+            "target_slot": 0,
+            "type": "MODEL"
+          },
+          {
+            "id": 6559,
+            "origin_id": 2959,
+            "origin_slot": 0,
+            "target_id": 2960,
+            "target_slot": 1,
+            "type": "MODEL"
+          },
+          {
+            "id": 6560,
+            "origin_id": -10,
+            "origin_slot": 7,
+            "target_id": 2960,
+            "target_slot": 2,
             "type": "BOOLEAN"
           }
         ],
