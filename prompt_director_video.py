@@ -170,13 +170,51 @@ SOUNDTRACK_RULE = (
     "(fully_copy) — keep any music it contains and add none. Do not write N/A for these two fields.")
 
 
+VOICE_RULE = (
+    "VOICE RULE for <Audio {n}> (a separate audio file, not a video soundtrack): if it is a speaker's voice, "
+    "bind it with these exact forms. In subject_definitions, end that speaker's Subject with: <Audio {n}> is the "
+    "voice-timbre reference for <Subject K> (SX). In retention_analysis write: <Audio {n}>: reference. <Audio {n}> is "
+    "the voice-timbre reference for <Subject K> (SX); the spoken words come only from the dialogue line. At every "
+    "line that voice speaks write: <Subject K> (SX) says in <delivery>, in the voice timbre referenced from "
+    "<Audio {n}>: <d>[Language] ...</d>. and end that sentence with a period after </d>. Never write what "
+    "<Audio {n}> sounds like (no tone, pitch, timbre or style words right after the label), never mark it fully_copy, "
+    "and never mention speech, dialogue, voices or vocal sounds in overall_soundscape — speech belongs only in "
+    "detailed_description. The speaker is on screen: do not turn the line into an off-screen voiceover.")
+
+
 def _soundtrack_rules(labels):
-    """Tell the writer to take a V+A soundtrack as it is instead of describing new sounds."""
+    """Tell the writer to take a V+A soundtrack as it is instead of describing new sounds, and to bind a
+    separate audio file (audio item or a video used as A) the way the spec wants a voice reference bound."""
     out = []
     for label in labels:
-        match = re.match(r"<Audio (\d+)>: soundtrack of <Video \d+>", str(label))
-        out.append(f"{label}\n{SOUNDTRACK_RULE.format(n=match.group(1))}" if match else label)
+        text = str(label)
+        match = re.match(r"<Audio (\d+)>: soundtrack of <Video \d+>", text)
+        if match:
+            out.append(f"{label}\n{SOUNDTRACK_RULE.format(n=match.group(1))}")
+            continue
+        match = re.match(r"<Audio (\d+)>: ", text)
+        out.append(f"{label}\n{VOICE_RULE.format(n=match.group(1))}" if match else label)
     return out
+
+
+def fix_summary_bracket(prompt):
+    """REF2VA summary must open with a bracketed task type ("[reference generation]"); the writer often
+    leaves the brackets off. Wrap the first summary line when it is a short task name. Returns (text, fixed)."""
+    match = re.search(r"(?mi)^(summary\s*:)[ \t]*(.*)$", prompt or "")
+    if not match:
+        return prompt, False
+    rest = match.group(2).strip()
+    if rest:  # "summary: task" -> "summary:\n[task]"
+        begin, end, lead = match.end(1), match.end(2), "\n"
+    else:     # task type on the next non-empty line
+        nxt = re.match(r"\s*\n[ \t]*([^\n]*)", prompt[match.end():])
+        if not nxt:
+            return prompt, False
+        rest = nxt.group(1).strip()
+        begin, end, lead = match.end() + nxt.start(1), match.end() + nxt.end(1), ""
+    if not rest or rest.startswith("[") or "<" in rest or ":" in rest or len(rest) > 80:
+        return prompt, False
+    return prompt[:begin] + f"{lead}[{rest.rstrip('.')}]" + prompt[end:], True
 
 
 def wrap_read_director(link):
@@ -236,6 +274,59 @@ def wrap_read_director(link):
     return True
 
 
+# Same word list as PromptDirector's validator (_SPEECH_WORDS): speech belongs in detailed_description only.
+_SPEECH = re.compile(r"(?i)\b(?:speak\w*|spoke\w*|spoken|say\w*|said|talk\w*|speech|conversation\w*|conversing|"
+                     r"dialogue|dialog|chatter\w*|voices?|vocal\w*|sing\w*|sang|sung|whisper\w*|shout\w*|yell\w*|"
+                     r"murmur\w*|mutter\w*|utter\w*|exclaim\w*|reply\w*|replies|replied)\b|\(S\d+\)")
+
+
+def fix_soundscape_speech(prompt):
+    """Drop the sentences of overall_soundscape that talk about speech ("No vocal sounds beyond the
+    dialogue.", "a clear spoken line from (S1)"). Sentences that cite an <Audio n> (the V+A soundtrack
+    rule) are kept, and the field is never emptied. Returns (text, removed sentences)."""
+    match = re.search(r"(?mis)^(overall_soundscape\s*:)(.*?)(?=^\s*[a-z_]+\s*:|\Z)", prompt or "")
+    if not match:
+        return prompt, []
+    body = match.group(2)
+    sentences = re.split(r"(?<=[.!?;])\s+", body.strip())
+    # the V+A rule's own sentence ("follows <Audio n> (fully_copy) ... do not invent ... dialogue") stays
+    keep = [s for s in sentences if ("<Audio" in s and "fully" in s.lower()) or not _SPEECH.search(s)]
+    dropped = [s for s in sentences if s not in keep]
+    if not dropped or not keep:
+        return prompt, []
+    text = " ".join(keep)
+    if text.endswith(";"):
+        text = text[:-1] + "."
+    trailing = body[len(body.rstrip()):]
+    return prompt[:match.start(2)] + " " + text + trailing + prompt[match.end(2):], dropped
+
+
+def _fix_writer_result(writer_class, result):
+    """Apply the summary-bracket and soundscape-speech fixes to the writer's prompt output (tuple, or
+    {"ui", "result"} dict) and note them in the report."""
+    values = result.get("result") if isinstance(result, dict) else result
+    if not isinstance(values, (tuple, list)) or not values:
+        return result
+    names = list(getattr(writer_class, "RETURN_NAMES", ("prompt", "mode", "report")))
+    i_prompt = names.index("prompt") if "prompt" in names else 0
+    text, bracket = fix_summary_bracket(str(values[i_prompt]))
+    text, dropped = fix_soundscape_speech(text)
+    if not bracket and not dropped:
+        return result
+    notes = (["Director Plus: summary task type wrapped in brackets."] if bracket else []) + \
+            [f"Director Plus: removed speech from overall_soundscape: \"{s}\"" for s in dropped]
+    values = list(values)
+    values[i_prompt] = text
+    if "report" in names and names.index("report") < len(values):
+        i_report = names.index("report")
+        values[i_report] = str(values[i_report]) + "\n" + "\n".join(notes)
+    if isinstance(result, dict):
+        out = dict(result)
+        out["result"] = tuple(values)
+        return out
+    return tuple(values)
+
+
 def wrap_writer(writer_class):
     original = writer_class.run
     if getattr(original, "_director_plus_video", False):
@@ -245,9 +336,14 @@ def wrap_writer(writer_class):
     def run(self, *args, **kwargs):
         token = set_writer_args(kwargs)
         try:
-            return original(self, *args, **kwargs)
+            result = original(self, *args, **kwargs)
         finally:
             reset_writer_args(token)
+        try:
+            return _fix_writer_result(writer_class, result)
+        except Exception:  # never break the writer over a cosmetic fix
+            logging.exception("[Director Plus] summary bracket fix skipped")
+            return result
 
     run._director_plus_video = True
     writer_class.run = run
