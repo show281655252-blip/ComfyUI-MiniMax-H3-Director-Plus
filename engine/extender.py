@@ -5333,7 +5333,7 @@ class MiniMaxH3Extender:
                 _send_extender_progress(owner, i, len(clips), "sampling",
                                         f"Refine clip {i + 1}/{len(clips)}")
                 sampled, refine_report = director_refine.refine(
-                    clip_model, positive, sampled, cfg["seed"], str(sampler_name),
+                    clip_model, base_positive, sampled, cfg["seed"], str(sampler_name),
                     frame_count, trim_frames, long_refine, _sample_h3)
                 print(f"H3 Extender: Clip {i + 1} refine: {refine_report}")
 
