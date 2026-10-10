@@ -202,6 +202,9 @@ export const DirectorPlusPromptStudio = {
       must_happen: "", must_not: "", chat: { messages: [] } });
     const fillSlot = s => {
       for (const [k, v] of Object.entries(blankSlot())) if (s[k] === undefined) s[k] = v;
+      // Picture roles are per scene too (picture 1 can be scene 1's first frame and later scenes' location);
+      // a scene without its own roles starts from the last shared ones.
+      if (!s.roles || typeof s.roles !== "object") s.roles = { ...(data.roles || {}) };
       if (!Array.isArray(s.shots) || !s.shots.length) s.shots = [blankShot()];
       if (!Array.isArray(s.chat?.messages)) s.chat = { messages: [] };
       return s;
@@ -210,7 +213,7 @@ export const DirectorPlusPromptStudio = {
       if (!data.scenes) {  // first open since scenes got their own state: the one old state belongs to this scene
         data.scenes = { [sceneKey(current)]: { shots: data.shots, prompt: data.prompt, previous: data.previous, brief: data.brief,
           briefReport: data.briefReport, report: data.report, revise: data.revise, must_happen: data.settings?.must_happen || "",
-          must_not: data.settings?.must_not || "", chat: { messages: data.chat?.messages || [] } } };
+          must_not: data.settings?.must_not || "", roles: { ...(data.roles || {}) }, chat: { messages: data.chat?.messages || [] } } };
       }
       const ids = new Set(long.clips.map((_, i) => sceneKey(i)));
       for (const k of Object.keys(data.scenes)) if (!ids.has(k)) delete data.scenes[k];  // scenes deleted from the timeline
@@ -221,6 +224,7 @@ export const DirectorPlusPromptStudio = {
     const slot = () => slotIn(data, sceneKey(current));
     const getSetting = key => long && SCENE_SETTINGS.includes(key) ? slot()[key] ?? "" : data.settings[key];
     const setSetting = (key, v) => { if (long && SCENE_SETTINGS.includes(key)) slot()[key] = v; else data.settings[key] = v; };
+    const rolesOf = () => long ? slot().roles : data.roles;
     const sceneRefresh = [];  // redraws of the per-scene parts, run when another scene is picked
 
     const back = h("div", { class: "dp-ps-back" });
@@ -323,17 +327,26 @@ export const DirectorPlusPromptStudio = {
     left.append(settingsCard);
 
     // ---------------- reference roles (Director pictures)
-    const refsCard = h("div", { class: "dp-ps-card" }, [h("h3", { text: "레퍼런스 역할" })]);
+    const refsTitle = h("h3", { text: "레퍼런스 역할" });
+    const refsCard = h("div", { class: "dp-ps-card" }, [refsTitle]);
     const pics = pictures();
     if (!pics.length) refsCard.append(h("div", { class: "muted", text: "Director 타임라인에 이미지 레퍼런스가 없습니다. 영상 레퍼런스는 작성할 때 자동으로 분석합니다." }));
     const refsBox = h("div", { class: "refs" }); refsCard.append(refsBox);
+    const roleSelects = [];
     pics.slice(0, REF_MAX).forEach((item, i) => {
-      const n = i + 1, sel = h("select", { title: "이 이미지를 무엇에 쓸지 정합니다" });
+      const n = i + 1, sel = h("select", { title: "이 이미지를 무엇에 쓸지 정합니다" + (long ? " (이 장면만)" : "") });
       for (const r of rows("ref_role")) sel.append(h("option", { value: r.key, text: r.ko, title: r.tip || "" }));
-      sel.value = data.roles[n] || "";
-      sel.onchange = () => { data.roles[n] = sel.value; save(); };
+      sel.value = rolesOf()[n] || "";
+      sel.onchange = () => { rolesOf()[n] = sel.value; save(); };
+      roleSelects.push([n, sel]);
       refsBox.append(h("div", { class: "ref" }, [h("img", { src: viewUrl(item.value), alt: "" }), h("div", { class: "dp-ps-field", style: "flex:1" }, [h("span", { text: `이미지 ${n} · <Picture ${n}>` }), sel])]));
     });
+    const refsRefresh = () => {
+      refsTitle.textContent = long ? `레퍼런스 역할 · 장면 ${current + 1}` : "레퍼런스 역할";
+      for (const [n, sel] of roleSelects) sel.value = rolesOf()[n] || "";
+    };
+    sceneRefresh.push(refsRefresh);
+    refsRefresh();
     left.append(refsCard);
 
     // ---------------- shot cards
@@ -438,7 +451,7 @@ export const DirectorPlusPromptStudio = {
     };
     const shotsTitle = h("span", { text: "샷 구성" });
     // Start a new scene from the one before it (its shot cards and must / must-not), then edit.
-    const copyPrev = h("button", { class: "small", text: "앞 장면에서 복사", title: "앞 장면의 샷 카드(대사 포함)와 필수·금지 사항을 이 장면으로 복사합니다." });
+    const copyPrev = h("button", { class: "small", text: "앞 장면에서 복사", title: "앞 장면의 샷 카드(대사 포함), 필수·금지 사항, 레퍼런스 역할을 이 장면으로 복사합니다." });
     copyPrev.onclick = () => {
       if (!long || current < 1) return;
       const prev = slotIn(data, sceneKey(current - 1)), here = slot();
@@ -446,7 +459,8 @@ export const DirectorPlusPromptStudio = {
       if (filled && !window.confirm(`장면 ${current + 1}의 샷 카드를 장면 ${current}의 내용으로 바꿀까요?`)) return;
       here.shots = JSON.parse(JSON.stringify(prev.shots));
       for (const k of SCENE_SETTINGS) here[k] = prev[k] || "";
-      save(); sceneRefresh.forEach(f => f()); say(`장면 ${current}의 샷 카드와 필수·금지 사항을 복사했습니다.`);
+      here.roles = { ...prev.roles };
+      save(); sceneRefresh.forEach(f => f()); say(`장면 ${current}의 샷 카드, 필수·금지 사항, 레퍼런스 역할을 복사했습니다.`);
     };
     const shotsHeadRefresh = () => {
       shotsTitle.textContent = long ? `샷 구성 · 장면 ${current + 1}` : "샷 구성";
@@ -510,7 +524,7 @@ export const DirectorPlusPromptStudio = {
     const payload = () => {
       const tw = node.widgets?.find(w => w.name === "timeline_data"), bw = node.widgets?.find(w => w.name === "builder_state");
       const shots = slot().shots.map(s => ({ ...s, acts: (s.acts || []).filter(a => a.act), lines: (s.lines || []).filter(l => (l.text || "").trim()) }));
-      const refs = pictures().slice(0, REF_MAX).map((_, i) => ({ n: i + 1, role: data.roles[i + 1] || "" }));
+      const refs = pictures().slice(0, REF_MAX).map((_, i) => ({ n: i + 1, role: rolesOf()[i + 1] || "" }));
       const settings = { ...data.settings };
       for (const k of SCENE_SETTINGS) settings[k] = getSetting(k) ?? "";
       return { director: { id: node.id, mode: target.mode(), duration: duration(), timeline_data: tw?.value || "{}", builder_state: bw?.value || "{}" },
@@ -614,7 +628,7 @@ export const DirectorPlusPromptStudio = {
           message: text, prompt: result.value, history: chat.messages.map(m => ({ role: m.role, content: m.role === "user" ? m.content : (m.explanation || m.content) })), llm,
           ollama_url: data.writer.ollama_url || "",
           context: { mode: p.director.mode, duration: p.director.duration, brief: slot().brief || "",
-            references: pictures().slice(0, REF_MAX).map((_, i) => `<Picture ${i + 1}> role=${data.roles[i + 1] || "unset"}`),
+            references: pictures().slice(0, REF_MAX).map((_, i) => `<Picture ${i + 1}> role=${rolesOf()[i + 1] || "unset"}`),
             scene: long ? { index: sceneIndex(), count: long.clips.length, context_frames: Number(long.context_length) || 0, previous_prompt: sceneIndex() > 0 ? long.clips[sceneIndex() - 1]?.prompt || "" : "" } : null } };
         input.value = ""; chatUsed = true;
         await runJob(node, { kind: "chat", label: "생각 중", text }, () => getJSON("/director_plus/prompt_studio/chat", body), (d, r) => {
