@@ -122,12 +122,26 @@ def brief(body):
     return dict(zip(("brief", "spec", "report"), values))
 
 
-def _soundtrack_fields(prompt):
+def _has_va_soundtrack(body):
+    """True when the Director timeline has an enabled V+A video, i.e. a reference soundtrack to copy.
+    A voice or audio-only reference (audio item, or a video used as A) is not a soundtrack."""
+    try:
+        items = json.loads((body.get("director") or {}).get("timeline_data") or "{}").get("items") or []
+    except (TypeError, ValueError):
+        return False
+    return any(it.get("enabled", True) is not False and it.get("type") == "video" and it.get("media_mode") == "video_audio"
+               for it in items if isinstance(it, dict))
+
+
+def _soundtrack_fields(prompt, soundtrack=True):
     """With the sound checkboxes off the writer is told to write N/A for both sound fields, while a
     V+A reference's soundtrack rule says to follow <Audio n>. Turning the boxes off is meant to drop
     the style preset's invented ambience/score, not the reference sound, so an N/A next to a
-    fully_copy soundtrack is replaced by the soundtrack sentence."""
+    fully_copy soundtrack is replaced by the soundtrack sentence. Only when the timeline really has
+    a V+A soundtrack: a voice-timbre audio marked fully_copy must not turn N/A music into "follow"."""
     import re
+    if not soundtrack:
+        return prompt, False
     match = re.search(r"<Audio (\d+)>[^\n]*fully[ _]cop", prompt)  # "<Audio 1>: fully_copy" or "... fully copied ..."
     if not match:
         return prompt, False
@@ -170,7 +184,7 @@ def write(body):
     # When the reply runs out of max_tokens the last sections never get written and the pack's
     # auto-fix fills them with N/A, which looks like the sound checkboxes were off.
     out["truncated"] = "was empty — set to N/A" in report
-    out["prompt"], fixed = _soundtrack_fields(str(out.get("prompt", "")))
+    out["prompt"], fixed = _soundtrack_fields(str(out.get("prompt", "")), _has_va_soundtrack(body))
     if fixed:
         out["report"] = report + "\nDirector Plus: overall_soundscape / non_diegetic_music N/A → follow the V+A reference soundtrack (fully_copy)."
     return {"truncated": out["truncated"], "max_tokens": kw.get("max_tokens"), "prompt": out.get("prompt", ""), "report": out.get("report", ""), "mode": out.get("mode", ""),
