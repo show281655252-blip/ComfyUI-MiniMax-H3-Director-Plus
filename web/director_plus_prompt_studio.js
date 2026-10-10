@@ -189,6 +189,40 @@ export const DirectorPlusPromptStudio = {
     const save = () => { node.properties[PROP] = data; app.graph?.setDirtyCanvas(true, true); };
     let view = null;
 
+    // Long video: every scene keeps its own shot cards, must-happen / must-not, result, report, brief,
+    // revise text and chat log in data.scenes[clip id]. Style and the other scene settings, picture
+    // roles and the writer stay shared. A single video keeps using the top-level fields as before.
+    const st = node.__directorPlusH3State?.() || {};
+    const long = st.long_video?.enabled ? st.long_video : null;
+    const SCENE_SETTINGS = ["must_happen", "must_not"];
+    const sceneKey = i => long?.clips?.[i]?.id || `scene-${i}`;
+    const nextScene = long ? long.clips.findIndex(c => !c.validated) : -1;
+    let current = long ? (Number.isInteger(options.scene) && long.clips[options.scene] ? options.scene : Math.max(0, nextScene)) : -1;
+    const blankSlot = () => ({ shots: [blankShot()], prompt: "", previous: "", brief: "", briefReport: "", report: "", revise: "",
+      must_happen: "", must_not: "", chat: { messages: [] } });
+    const fillSlot = s => {
+      for (const [k, v] of Object.entries(blankSlot())) if (s[k] === undefined) s[k] = v;
+      if (!Array.isArray(s.shots) || !s.shots.length) s.shots = [blankShot()];
+      if (!Array.isArray(s.chat?.messages)) s.chat = { messages: [] };
+      return s;
+    };
+    if (long) {
+      if (!data.scenes) {  // first open since scenes got their own state: the one old state belongs to this scene
+        data.scenes = { [sceneKey(current)]: { shots: data.shots, prompt: data.prompt, previous: data.previous, brief: data.brief,
+          briefReport: data.briefReport, report: data.report, revise: data.revise, must_happen: data.settings?.must_happen || "",
+          must_not: data.settings?.must_not || "", chat: { messages: data.chat?.messages || [] } } };
+      }
+      const ids = new Set(long.clips.map((_, i) => sceneKey(i)));
+      for (const k of Object.keys(data.scenes)) if (!ids.has(k)) delete data.scenes[k];  // scenes deleted from the timeline
+    }
+    // A scene's state inside a given state object: a job that finishes later writes into the scene it
+    // was started for, even if the window now shows another scene (or is closed).
+    const slotIn = (d, key) => long ? fillSlot((d.scenes ||= {})[key] ||= blankSlot()) : d;
+    const slot = () => slotIn(data, sceneKey(current));
+    const getSetting = key => long && SCENE_SETTINGS.includes(key) ? slot()[key] ?? "" : data.settings[key];
+    const setSetting = (key, v) => { if (long && SCENE_SETTINGS.includes(key)) slot()[key] = v; else data.settings[key] = v; };
+    const sceneRefresh = [];  // redraws of the per-scene parts, run when another scene is picked
+
     const back = h("div", { class: "dp-ps-back" });
     const box = h("div", { class: "dp-ps" });
     back.append(box); document.body.append(back);
@@ -265,7 +299,8 @@ export const DirectorPlusPromptStudio = {
         soundCell.append(h("label", { class: "dp-ps-field", style: "align-items:center;gap:6px;cursor:pointer", title: spec.tooltip || "" }, [h("span", { text: label }), box2]));
         continue;
       }
-      const field = h("label", { class: "dp-ps-field" + (extra === "wide" ? " wide" : "") }, [h("span", { text: label })]);
+      const perScene = long && SCENE_SETTINGS.includes(key);
+      const field = h("label", { class: "dp-ps-field" + (extra === "wide" ? " wide" : "") }, [h("span", { text: perScene ? `${label} (이 장면만)` : label })]);
       if (spec.kind === "combo") {
         const sel = h("select", { title: spec.tooltip || "" });
         const fill = filter => { sel.innerHTML = ""; for (const o of spec.options) if (!filter || String(o).toLowerCase().includes(filter) || o === data.settings[key]) sel.append(h("option", { value: o, text: o })); sel.value = data.settings[key]; };
@@ -278,8 +313,9 @@ export const DirectorPlusPromptStudio = {
         box2.onchange = () => { data.settings[key] = box2.checked; save(); };
         field.append(h("div", { class: "chk" }, [box2]));
       } else {
-        const area = h("textarea", { title: spec.tooltip || "" }); area.value = data.settings[key] ?? "";
-        area.oninput = () => { data.settings[key] = area.value; save(); };
+        const area = h("textarea", { title: spec.tooltip || "" }); area.value = getSetting(key) ?? "";
+        area.oninput = () => { setSetting(key, area.value); save(); };
+        if (perScene) sceneRefresh.push(() => { area.value = getSetting(key) ?? ""; });
         field.append(area);
       }
       grid.append(field);
@@ -305,8 +341,9 @@ export const DirectorPlusPromptStudio = {
     const shotsBox = h("div", { class: "dp-ps-col" });
     const renderShots = () => {
       shotsBox.innerHTML = "";
-      data.shots.forEach((shot, i) => shotsBox.append(shotCard(shot, i)));
+      slot().shots.forEach((shot, i) => shotsBox.append(shotCard(shot, i)));
     };
+    sceneRefresh.push(() => renderShots());
     const vocabSelect = (field, value, onchange, disabled, tip) => {
       const sel = h("select", { title: tip || "" });
       for (const r of rows(field)) sel.append(h("option", { value: r.key, text: r.ko, title: r.tip || "" }));
@@ -333,7 +370,7 @@ export const DirectorPlusPromptStudio = {
       const set = (key, v, rerender) => { shot[key] = v; save(); if (rerender) renderShots(); };
       const card = h("div", { class: "shot" });
       card.append(h("div", { class: "shot-head" }, [h("b", { text: `SHOT ${String(i + 1).padStart(2, "0")}` }), h("span", { class: "grow", style: "flex:1" }),
-        h("button", { class: "small", text: "삭제", disabled: data.shots.length < 2, onclick: () => { data.shots.splice(i, 1); save(); renderShots(); } })]));
+        h("button", { class: "small", text: "삭제", disabled: slot().shots.length < 2, onclick: () => { slot().shots.splice(i, 1); save(); renderShots(); } })]));
       if (i > 0) {
         const at = h("input", { type: "number", step: "0.1", min: "0", placeholder: "자동" }); at.value = shot.at ?? "";
         at.onchange = () => set("at", at.value === "" ? null : Number(at.value));
@@ -399,25 +436,46 @@ export const DirectorPlusPromptStudio = {
       card.append(h("details", { open: shot.lines.length > 0 }, [h("summary", { text: `대사 (${shot.lines.filter(l => (l.text || "").trim()).length})` }), lines]));
       return card;
     };
-    shotsCard.append(h("h3", {}, [h("span", { text: "샷 구성" }), h("span", { class: "grow" }), h("button", { text: "＋ 샷 추가", onclick: () => { data.shots.push(blankShot()); save(); renderShots(); } })]), shotsBox);
+    const shotsTitle = h("span", { text: "샷 구성" });
+    // Start a new scene from the one before it (its shot cards and must / must-not), then edit.
+    const copyPrev = h("button", { class: "small", text: "앞 장면에서 복사", title: "앞 장면의 샷 카드(대사 포함)와 필수·금지 사항을 이 장면으로 복사합니다." });
+    copyPrev.onclick = () => {
+      if (!long || current < 1) return;
+      const prev = slotIn(data, sceneKey(current - 1)), here = slot();
+      const filled = here.shots.some(s => (s.text || "").trim() || (s.lines || []).some(l => (l.text || "").trim()) || (s.acts || []).some(a => a.act));
+      if (filled && !window.confirm(`장면 ${current + 1}의 샷 카드를 장면 ${current}의 내용으로 바꿀까요?`)) return;
+      here.shots = JSON.parse(JSON.stringify(prev.shots));
+      for (const k of SCENE_SETTINGS) here[k] = prev[k] || "";
+      save(); sceneRefresh.forEach(f => f()); say(`장면 ${current}의 샷 카드와 필수·금지 사항을 복사했습니다.`);
+    };
+    const shotsHeadRefresh = () => {
+      shotsTitle.textContent = long ? `샷 구성 · 장면 ${current + 1}` : "샷 구성";
+      copyPrev.style.display = long && current > 0 ? "" : "none";
+    };
+    sceneRefresh.push(shotsHeadRefresh);
+    shotsHeadRefresh();
+    shotsCard.append(h("h3", {}, [shotsTitle, h("span", { class: "grow" }), copyPrev,
+      h("button", { text: "＋ 샷 추가", onclick: () => { slot().shots.push(blankShot()); save(); renderShots(); } })]), shotsBox);
     renderShots();
     left.append(shotsCard);
 
     // ---------------- prompt panel
-    const st = node.__directorPlusH3State?.() || {};
-    const long = st.long_video?.enabled ? st.long_video : null;
     const panel = h("div", { class: "dp-ps-card" });
     const status = h("div", { class: "status" });
     const say = (text, err) => { status.textContent = text || ""; status.classList.toggle("err", !!err); };
 
     const targetSel = h("select");
     if (long) {
-      const next = long.clips.findIndex(c => !c.validated);
-      long.clips.forEach((c, i) => targetSel.append(h("option", { value: String(i), text: `장면 ${i + 1} · ${c.duration}초${i === next ? " · NEXT" : ""}${c.validated ? " · 승인됨(잠김)" : ""}`, disabled: c.validated })));
-      const want = Number.isInteger(options.scene) && !long.clips[options.scene]?.validated ? options.scene : next;
-      targetSel.value = String(want >= 0 ? want : 0);
+      // Approved scenes can be opened too (to read or rework their writing); 적용 stays refused for them.
+      long.clips.forEach((c, i) => targetSel.append(h("option", { value: String(i), text: `장면 ${i + 1} · ${c.duration}초${i === nextScene ? " · NEXT" : ""}${c.validated ? " · 승인됨(적용 불가)" : ""}` })));
+      targetSel.value = String(current);
+      targetSel.onchange = () => {
+        current = Number(targetSel.value); save();
+        sceneRefresh.forEach(f => f());
+        say(long.clips[current]?.validated ? `장면 ${current + 1}은 승인돼 있어 결과를 적용하려면 먼저 승인을 해제해야 합니다.` : "");
+      };
     } else targetSel.append(h("option", { value: "director", text: "Director 프롬프트" }));
-    const sceneIndex = () => long ? Number(targetSel.value) : -1;
+    const sceneIndex = () => long ? current : -1;
     const duration = () => long ? Number(long.clips[sceneIndex()]?.duration) || 5 : (target.duration() || 5);
 
     const modelSel = h("select");
@@ -436,11 +494,11 @@ export const DirectorPlusPromptStudio = {
     advField("max_words", "최대 단어 수"); advField("llm_seed", "seed (0 = 매번 새로)"); advField("vision_pass", "이미지 판독 (vision pass)");
 
     const result = h("textarea", { class: "result", placeholder: "완성된 프롬프트를 붙여 넣거나 「프롬프트 작성」으로 만드세요." });
-    result.value = data.prompt || ""; result.oninput = () => { data.prompt = result.value; save(); };
-    const reportBox = h("div", { class: "report", text: [data.brief && "[브리프]\n" + data.brief, data.report && "[작성 보고서]\n" + data.report].filter(Boolean).join("\n\n") || "아직 없습니다." });
+    result.value = slot().prompt || ""; result.oninput = () => { slot().prompt = result.value; save(); };
+    const reportBox = h("div", { class: "report" });
     const reportDetails = h("details", {}, [h("summary", { text: "브리프 · 검사 결과" }), reportBox]);
     const reviseBox = h("textarea", { placeholder: "고칠 부분만 적으세요. 예: 끝부분을 계속 빗자루로 쓸고 있게 바꿔줘." });
-    reviseBox.value = data.revise || ""; reviseBox.oninput = () => { data.revise = reviseBox.value; save(); };
+    reviseBox.value = slot().revise || ""; reviseBox.oninput = () => { slot().revise = reviseBox.value; save(); };
 
     let busy = false;
     const buttons = [];
@@ -451,29 +509,38 @@ export const DirectorPlusPromptStudio = {
     };
     const payload = () => {
       const tw = node.widgets?.find(w => w.name === "timeline_data"), bw = node.widgets?.find(w => w.name === "builder_state");
-      const shots = data.shots.map(s => ({ ...s, acts: (s.acts || []).filter(a => a.act), lines: (s.lines || []).filter(l => (l.text || "").trim()) }));
+      const shots = slot().shots.map(s => ({ ...s, acts: (s.acts || []).filter(a => a.act), lines: (s.lines || []).filter(l => (l.text || "").trim()) }));
       const refs = pictures().slice(0, REF_MAX).map((_, i) => ({ n: i + 1, role: data.roles[i + 1] || "" }));
+      const settings = { ...data.settings };
+      for (const k of SCENE_SETTINGS) settings[k] = getSetting(k) ?? "";
       return { director: { id: node.id, mode: target.mode(), duration: duration(), timeline_data: tw?.value || "{}", builder_state: bw?.value || "{}" },
-        shots: { version: 1, shots, refs }, settings: data.settings, writer: { ...data.writer, model: modelSel.value } };
+        shots: { version: 1, shots, refs }, settings, writer: { ...data.writer, model: modelSel.value } };
     };
-    const showReport = () => { reportBox.textContent = [data.brief && "[브리프]\n" + data.brief, data.briefReport && "[샷 구성 점검]\n" + data.briefReport, data.report && "[작성 보고서]\n" + data.report].filter(Boolean).join("\n\n") || "아직 없습니다."; };
+    const showReport = () => { const s = slot(); reportBox.textContent = [s.brief && "[브리프]\n" + s.brief, s.briefReport && "[샷 구성 점검]\n" + s.briefReport, s.report && "[작성 보고서]\n" + s.report].filter(Boolean).join("\n\n") || "아직 없습니다."; };
+    showReport();
+    sceneRefresh.push(() => { result.value = slot().prompt || ""; reviseBox.value = slot().revise || ""; showReport(); });
+    // A job remembers its scene; its notice says so when the window now shows another scene.
+    const jobScene = () => ({ key: sceneKey(current), label: long ? `장면 ${current + 1}` : "" });
+    const sceneNote = (scene, text) => long && scene.key !== sceneKey(current) ? `${scene.label}: ${text} (그 장면을 고르면 보입니다)` : text;
     const act = (label, cls, fn) => { const b = h("button", { text: label, class: cls || "" }); b.onclick = async () => { if (busy || JOBS.has(node)) return; try { await fn(); } catch (e) { say(e.message, true); } }; buttons.push(b); return b; };
     const truncatedText = r => `작성 완료 (${r.seconds}초) — 단, 응답이 최대 응답 토큰(${r.max_tokens})에서 잘린 것 같습니다. 끝부분과 빈 칸이 N/A로 채워졌을 수 있으니 「LLM 고급 설정」에서 최대 응답 토큰을 올리고 다시 작성하세요.`;
 
     const briefBtn = act("브리프 확인", "", async () => {
-      const body = payload();
+      const body = payload(), scene = jobScene();
       await runJob(node, { kind: "brief", label: "브리프 만드는 중" }, () => getJSON("/director_plus/prompt_studio/brief", body), (d, r) => {
-        d.brief = r.brief; d.briefReport = r.report;
-        return { text: "브리프를 만들었습니다. 아래 「브리프 · 검사 결과」에서 확인하세요.", openReport: true };
+        const s = slotIn(d, scene.key);
+        s.brief = r.brief; s.briefReport = r.report;
+        return { text: sceneNote(scene, "브리프를 만들었습니다. 아래 「브리프 · 검사 결과」에서 확인하세요."), openReport: true };
       });
     });
     const writeBtn = act("프롬프트 작성", "primary", async () => {
       if (!modelSel.value) throw new Error("Ollama 모델을 고르세요.");
-      const body = payload();
-      await runJob(node, { kind: "write", label: "작성 중 (영상 레퍼런스가 있으면 분석 포함, 1~2분)" }, () => getJSON("/director_plus/prompt_studio/write", body), (d, r) => {
-        if (d.prompt && d.prompt !== r.prompt) d.previous = d.prompt;
-        d.prompt = r.prompt; d.brief = r.brief; d.briefReport = r.brief_report; d.report = r.report;
-        return r.truncated ? { text: truncatedText(r), err: true, openReport: true } : { text: `작성 완료 (${r.seconds}초). 확인한 뒤 「적용」을 누르세요.` };
+      const body = payload(), scene = jobScene();
+      await runJob(node, { kind: "write", label: `작성 중${scene.label ? ` · ${scene.label}` : ""} (영상 레퍼런스가 있으면 분석 포함, 1~2분)` }, () => getJSON("/director_plus/prompt_studio/write", body), (d, r) => {
+        const s = slotIn(d, scene.key);
+        if (s.prompt && s.prompt !== r.prompt) s.previous = s.prompt;
+        s.prompt = r.prompt; s.brief = r.brief; s.briefReport = r.brief_report; s.report = r.report;
+        return r.truncated ? { text: sceneNote(scene, truncatedText(r)), err: true, openReport: true } : { text: sceneNote(scene, `작성 완료 (${r.seconds}초). 확인한 뒤 「적용」을 누르세요.`) };
       });
     });
     const applyNow = async () => {
@@ -495,7 +562,7 @@ export const DirectorPlusPromptStudio = {
     if (!data.chat.llm.model) data.chat.llm.model = data.writer.model;
     let chatPane = null;
     const openChat = () => {
-      const chat = data.chat;
+      const chat = slot().chat, chatScene = jobScene();  // the log is this scene's; the LLM settings are shared
       const pane = h("div", { style: "position:absolute;inset:0;background:#0f1416;display:flex;flex-direction:column;z-index:5" });
       box.style.position = "relative";
       const log = h("div", { style: "flex:1;overflow:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px" });
@@ -509,7 +576,7 @@ export const DirectorPlusPromptStudio = {
         if (!user && m.prompt) {
           const same = m.prompt === result.value.trim();
           const put = h("button", { class: "small", text: same ? "결과 칸에 들어 있음" : "결과 칸에 넣기", disabled: same });
-          put.onclick = () => { if (result.value.trim() !== m.prompt) data.previous = result.value; result.value = m.prompt; data.prompt = m.prompt; save(); put.textContent = "결과 칸에 들어 있음"; put.disabled = true; chatStatus.textContent = "결과 칸에 넣었습니다. 「적용」을 누르면 장면/Director에 들어갑니다."; chatStatus.classList.remove("err"); };
+          put.onclick = () => { if (result.value.trim() !== m.prompt) slot().previous = result.value; result.value = m.prompt; slot().prompt = m.prompt; save(); put.textContent = "결과 칸에 들어 있음"; put.disabled = true; chatStatus.textContent = "결과 칸에 넣었습니다. 「적용」을 누르면 장면/Director에 들어갑니다."; chatStatus.classList.remove("err"); };
           const now = h("button", { class: "small", text: "바로 적용" });
           now.onclick = async () => { put.onclick(); try { await applyNow(); chatStatus.textContent = status.textContent; } catch (e) { chatStatus.textContent = e.message; chatStatus.classList.add("err"); } };
           const view = h("details", {}, [h("summary", { text: "제안된 프롬프트 보기" }), h("div", { class: "report", style: "max-height:320px", text: m.prompt })]);
@@ -523,7 +590,7 @@ export const DirectorPlusPromptStudio = {
         chat.messages.forEach((m, i) => log.append(bubble(m, i)));
         log.scrollTop = log.scrollHeight;
       };
-      const llm = chat.llm, models = CATALOG.writer.model?.options || [];
+      const llm = data.chat.llm, models = CATALOG.writer.model?.options || [];
       const setField = (label, key, props) => { const inp = h("input", { type: "number", ...props }); inp.value = llm[key]; inp.onchange = () => { llm[key] = Number(inp.value); save(); }; return h("label", { class: "dp-ps-field" }, [h("span", { text: label }), inp]); };
       const modelPick = h("select"); for (const o of models.includes(llm.model) ? models : [llm.model, ...models]) modelPick.append(h("option", { value: o, text: o })); modelPick.value = llm.model; modelPick.onchange = () => { llm.model = modelPick.value; save(); };
       const think = h("input", { type: "checkbox" }); think.checked = llm.think; think.onchange = () => { llm.think = think.checked; save(); };
@@ -546,13 +613,14 @@ export const DirectorPlusPromptStudio = {
         const body = {
           message: text, prompt: result.value, history: chat.messages.map(m => ({ role: m.role, content: m.role === "user" ? m.content : (m.explanation || m.content) })), llm,
           ollama_url: data.writer.ollama_url || "",
-          context: { mode: p.director.mode, duration: p.director.duration, brief: data.brief || "",
+          context: { mode: p.director.mode, duration: p.director.duration, brief: slot().brief || "",
             references: pictures().slice(0, REF_MAX).map((_, i) => `<Picture ${i + 1}> role=${data.roles[i + 1] || "unset"}`),
             scene: long ? { index: sceneIndex(), count: long.clips.length, context_frames: Number(long.context_length) || 0, previous_prompt: sceneIndex() > 0 ? long.clips[sceneIndex() - 1]?.prompt || "" : "" } : null } };
         input.value = ""; chatUsed = true;
         await runJob(node, { kind: "chat", label: "생각 중", text }, () => getJSON("/director_plus/prompt_studio/chat", body), (d, r) => {
-          d.chat.messages.push({ role: "user", content: text }, { role: "assistant", content: r.reply, explanation: r.explanation, prompt: r.prompt });
-          if (d.chat.messages.length > 60) d.chat.messages.splice(0, d.chat.messages.length - 60);
+          const log = slotIn(d, chatScene.key).chat.messages;
+          log.push({ role: "user", content: text }, { role: "assistant", content: r.reply, explanation: r.explanation, prompt: r.prompt });
+          if (log.length > 60) log.splice(0, log.length - 60);
           return { text: r.prompt ? `답변 완료 (${r.seconds}초). 제안된 프롬프트를 확인하고 「결과 칸에 넣기」를 누르세요.` : `답변 완료 (${r.seconds}초).` };
         });
       };
@@ -565,7 +633,7 @@ export const DirectorPlusPromptStudio = {
       };
       sendBtn.onclick = send;
       input.addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } });
-      const clear = h("button", { class: "small", text: "대화 지우기", onclick: () => { if (JOBS.has(node) || !chat.messages.length || !window.confirm("이 대화를 지울까요?")) return; chat.messages = []; save(); renderLog(); } });
+      const clear = h("button", { class: "small", text: "대화 지우기", onclick: () => { if (JOBS.has(node) || !chat.messages.length || !window.confirm("이 대화를 지울까요?")) return; chat.messages.splice(0); save(); renderLog(); } });
       pane.append(h("div", { class: "dp-ps-top" }, [h("h2", { text: "💬 LLM과 대화하며 다듬기" }), h("span", { class: "muted", text: long ? `장면 ${sceneIndex() + 1} · ${duration()}초` : `${duration()}초` }), h("span", { class: "grow" }), clear, h("button", { text: "← 돌아가기", onclick: closeChat })]),
         settingsBox, log,
         h("div", { style: "padding:10px 18px 14px;border-top:1px solid #243035;display:flex;flex-direction:column;gap:8px" }, [chatStatus, h("div", { class: "row", style: "align-items:stretch" }, [input, h("div", { style: "flex:0 0 auto;display:flex" }, [sendBtn])])]));
@@ -579,17 +647,19 @@ export const DirectorPlusPromptStudio = {
     const reviseBtn = act("부분 수정", "", async () => {
       if (!result.value.trim()) throw new Error("수정할 프롬프트가 없습니다.");
       if (!reviseBox.value.trim()) throw new Error("고칠 부분을 적으세요.");
-      const before = result.value, body = { prompt: before, request: reviseBox.value, writer: { ...data.writer, model: modelSel.value } };
+      const before = result.value, body = { prompt: before, request: reviseBox.value, writer: { ...data.writer, model: modelSel.value } }, scene = jobScene();
       await runJob(node, { kind: "revise", label: "부분 수정 중" }, () => getJSON("/director_plus/prompt_studio/revise", body), (d, r) => {
-        d.report = r.report;
-        if (!r.applied) return { text: "수정하지 않았습니다. 보고서를 확인하세요.", err: true };
-        d.previous = before; d.prompt = r.prompt; d.revise = "";
-        return { text: "수정했습니다. 바뀐 내용은 「브리프 · 검사 결과」의 보고서에서 볼 수 있습니다." };
+        const s = slotIn(d, scene.key);
+        s.report = r.report;
+        if (!r.applied) return { text: sceneNote(scene, "수정하지 않았습니다. 보고서를 확인하세요."), err: true };
+        s.previous = before; s.prompt = r.prompt; s.revise = "";
+        return { text: sceneNote(scene, "수정했습니다. 바뀐 내용은 「브리프 · 검사 결과」의 보고서에서 볼 수 있습니다.") };
       });
     });
     const prevBtn = act("이전 프롬프트", "", async () => {
-      if (!data.previous) throw new Error("이전 프롬프트가 없습니다.");
-      [data.prompt, data.previous] = [data.previous, result.value]; result.value = data.prompt; save(); say("이전 프롬프트로 바꿨습니다. 다시 누르면 되돌아갑니다.");
+      const s = slot();
+      if (!s.previous) throw new Error("이전 프롬프트가 없습니다.");
+      [s.prompt, s.previous] = [s.previous, result.value]; result.value = s.prompt; save(); say("이전 프롬프트로 바꿨습니다. 다시 누르면 되돌아갑니다.");
     });
     const applyBtn = act("적용", "apply", applyNow);
 
@@ -612,7 +682,7 @@ export const DirectorPlusPromptStudio = {
       started: job => { lock(true, job.label, job.t0); chatPane?.running(job); },
       done: notice => {
         lock(false);
-        result.value = data.prompt || ""; reviseBox.value = data.revise || ""; showReport();
+        result.value = slot().prompt || ""; reviseBox.value = slot().revise || ""; showReport();
         if (notice.openReport) reportDetails.open = true;
         say(notice.text, notice.err);
         if (notice.kind === "chat") chatUsed = true;
