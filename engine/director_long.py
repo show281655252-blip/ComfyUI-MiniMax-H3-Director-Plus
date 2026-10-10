@@ -345,6 +345,11 @@ class DirectorPlusGenerate:
 
             media[f"ref_audio_{i}"] = guide.get("ref_audios", {}).get(f"ref_audio_{i}")
 
+        # Audio refs default to "reuse" (same clip from its start in every scene, for voice timbre);
+        # only the ones set to "continue" walk through the audio scene by scene.
+        audio_use = guide.get("ref_audio_use") or {}
+        media["ref_audio_reuse_slots"] = [i for i in range(1, 4) if audio_use.get(f"ref_audio_{i}", "reuse") != "continue"]
+
         result = MiniMaxH3Extender().extend(
 
             model=model, clip=clip, vae=vae, audio_vae=audio_vae,

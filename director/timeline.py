@@ -255,6 +255,9 @@ class DirectorPlusTimeline:
         items = [pair for pair in items if pair[1].get("enabled", True)]
         first_frame = last_frame = None
         ref_images, ref_videos, ref_video_audios, ref_audios = {}, {}, {}, {}
+        # Long video: "reuse" = every scene uses this audio from its start (voice timbre),
+        # "continue" = scenes walk through it like a soundtrack (the engine's old behaviour).
+        ref_audio_use = {}
         images, videos, audios = [], [], []
         try:
             import folder_paths
@@ -327,6 +330,7 @@ class DirectorPlusTimeline:
                 elif kind == "audio":
                     value = load_audio(value, input_directory, trim_start=trim_start, trim_end=trim_end) if isinstance(value, str) and input_directory else value
                     ref_audios[f"ref_audio_{len(ref_audios) + 1}"] = value
+                    ref_audio_use[f"ref_audio_{len(ref_audios)}"] = item.get("audio_use") or "reuse"
                     audios.append({**item, "duration": audio_duration(value) if isinstance(value, dict) else item.get("duration")})
                 elif kind == "video":
                     if video_mode not in {"video", "audio", "video_audio"}:
@@ -351,6 +355,7 @@ class DirectorPlusTimeline:
                             ref_video_audios[f"ref_video_audio_{len(ref_videos)}"] = audio
                         else:
                             ref_audios[f"ref_audio_{len(ref_audios) + 1}"] = audio
+                            ref_audio_use[f"ref_audio_{len(ref_audios)}"] = item.get("audio_use") or "reuse"
                         audios.append({**item, "duration": audio_duration(audio) if isinstance(audio, dict) else item.get("duration")})
                     attached_audio = item.get("audio")
                     if attached_audio is not None and video_mode not in {"audio", "video_audio"}:
@@ -360,6 +365,7 @@ class DirectorPlusTimeline:
                             ref_video_audios[f"ref_video_audio_{len(ref_videos)}"] = attached_audio
                         else:
                             ref_audios[f"ref_audio_{len(ref_audios) + 1}"] = attached_audio
+                            ref_audio_use[f"ref_audio_{len(ref_audios)}"] = item.get("audio_use") or "reuse"
                         audios.append({**item, "duration": audio_duration(attached_audio) if isinstance(attached_audio, dict) else item.get("duration")})
             validate_reference_limits(images=images, videos=videos, audios=audios,
                                       audio_has_visual=bool(images or videos or refmod_items))
@@ -397,7 +403,7 @@ class DirectorPlusTimeline:
             "version": 2, "mode": mode, "prompt": prompt, "prompt_blocks": blocks, "resolved_prompt": resolved,
             "width": width, "height": height, "length": length, "ref_image_size": ref_image_size, "input_scaling": input_scaling,
             "first_frame": first_frame, "last_frame": last_frame, "ref_images": ref_images, "ref_videos": ref_videos,
-            "ref_video_audios": ref_video_audios, "ref_audios": ref_audios, "builder_state": merged,
+            "ref_video_audios": ref_video_audios, "ref_audios": ref_audios, "ref_audio_use": ref_audio_use, "builder_state": merged,
             "timeline": [{key: item.get(key) for key in ("id", "type", "start", "duration", "order", "trim_start", "trim_end") if key in item} for _, item in items],
             "prompt_payload": {"mode": mode, "full_prompt": resolved, "is_ref_mode": mode == "REF2VA", "subject_definitions": merged["ref"]["subject_defs"], "summary": merged["ref"]["summary_text"], "retention_analysis": merged["ref"]["retention"], "detailed_description": {"style_line": merged["ref"]["style_line"], "detail": merged["ref"]["detail"]}, "overall_soundscape": merged["ref"]["soundscape"] if mode == "REF2VA" else merged["soundscape"], "non_diegetic_music": merged["ref"]["music"] if mode == "REF2VA" else merged["music"], "imd": merged.get("imd", ""), "p2_shot": merged.get("p2_shot", ""), "last_shot": merged.get("last_shot", "")},
         }

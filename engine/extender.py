@@ -1302,8 +1302,12 @@ def _prepare_standalone_audio_refs(
     clip_start_seconds: float,
     clip_duration_seconds: float,
     cache=None,
+    reuse_slots=(),
 ):
     """Build per-clip standalone audio refs without reusing illegal long audio.
+
+    Director Plus: slots in reuse_slots are never treated as a timeline -- every clip
+    gets the source from 0 (voice-timbre references).
 
     Reusable refs start at 0 for every clip. A source is treated as a timeline
     only when it is longer than both the 5s split threshold and the current
@@ -1335,7 +1339,7 @@ def _prepare_standalone_audio_refs(
     for slot, audio in active:
         label = f"ref_audio_{slot}"
         source_duration = _audio_duration_seconds(audio)
-        timeline_mode = source_duration > max(
+        timeline_mode = slot not in reuse_slots and source_duration > max(
             REF_AUDIO_TIMELINE_SPLIT_SECONDS,
             clip_duration_seconds,
         ) + 1e-6
@@ -1473,13 +1477,14 @@ def _select_standalone_audio_refs_for_prompt(prompt: str, ref_audios):
     return selected, selected_slots
 
 
-def _build_standalone_audio_clip_plan(clips, ref_audios):
+def _build_standalone_audio_clip_plan(clips, ref_audios, reuse_slots=()):
     """Precompute per-clip Audio selection and independent source offsets.
 
     Each logical standalone Audio slot owns its own timeline cursor. A slot only
     advances on clips that actually select/use that slot. This keeps rerenders
     deterministic because validated/cached cards are included in the plan even
-    when they are skipped by the sampler.
+    when they are skipped by the sampler. Slots in reuse_slots (Director Plus voice
+    references) never advance: every clip starts them at 0.
     """
     cursors = {slot: 0.0 for slot in range(1, MAX_STANDALONE_AUDIO_REFS + 1)}
     plan = []
@@ -1490,7 +1495,8 @@ def _build_standalone_audio_clip_plan(clips, ref_audios):
         offsets = {slot: float(cursors[slot]) for slot in selected_audio_slots}
         duration = _duration_to_frames(clip_cfg["duration"]) / float(FPS)
         for slot in selected_audio_slots:
-            cursors[slot] += duration
+            if slot not in reuse_slots:
+                cursors[slot] += duration
         plan.append((selected_ref_audios, selected_audio_slots, offsets))
     return plan
 
@@ -4957,7 +4963,9 @@ class MiniMaxH3Extender:
         # only the Audio slot(s) they actually use. Example: Clip 1 <Audio 1>,
         # Clip 2 <Audio 2> starts both sources at 0; a later <Audio 1> resumes
         # after the duration previously consumed from Audio 1.
-        standalone_audio_clip_plan = _build_standalone_audio_clip_plan(clips, ref_audios)
+        # Director Plus: audio refs marked "reuse" (voice timbre) start at 0 in every clip.
+        audio_reuse_slots = {int(x) for x in (kwargs.get("ref_audio_reuse_slots") or ())}
+        standalone_audio_clip_plan = _build_standalone_audio_clip_plan(clips, ref_audios, audio_reuse_slots)
         standalone_audio_cache = {}
         local_media_decode_cache = {}
 
@@ -5241,13 +5249,21 @@ class MiniMaxH3Extender:
                     raise ValueError(
                         "MiniMax H3 Extender: standalone reference audio requires at least one image or video reference."
                     )
+                requested_audio_slots = list(selected_audio_slots)
                 audio_items, audio_blocks, selected_audio_slots = _prepare_standalone_audio_refs(
                     audio_vae,
                     selected_ref_audios,
                     selected_audio_offsets,
                     frame_count / float(FPS),
                     cache=standalone_audio_cache,
+                    reuse_slots=audio_reuse_slots,
                 )
+                for slot in sorted(set(requested_audio_slots) - set(selected_audio_slots)):
+                    _LOG.warning(
+                        "H3 Extender: Clip %d audio reference %d is used up (continue mode) -- "
+                        "this scene has no audio reference. 장면 %d: 오디오 레퍼런스 %d 소진(이어서 모드).",
+                        i + 1, slot, i + 1, slot,
+                    )
                 clip_ref_items.extend(audio_items)
                 clip_ref_blocks.extend(audio_blocks)
 
