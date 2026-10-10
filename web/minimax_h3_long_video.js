@@ -973,7 +973,8 @@ export function renderLongVideo(node, state, emit) {
 
   button(projects, "프로젝트 저장 (.ext)", async () => {
     const widgets = Object.fromEntries(node.widgets.filter(w => ["width", "height", "duration", "ref_image_size", "frame_rate", "mode", "builder_state"].includes(w.name)).map(w => [w.name, w.value]));
-    const result = await request("/director_plus/project/save", {state, widgets});
+    const studio = window.DirectorPlusPromptStudio?.exportState?.(node) || null;
+    const result = await request("/director_plus/project/save", {state, widgets, ...(studio ? {studio} : {})});
     const link = element("a"); link.href = api.apiURL('/director_plus/extender/project/download?' + new URLSearchParams({token: result.token}));
     link.download = "Director_Project.ext"; link.click();
   });
@@ -982,6 +983,9 @@ export function renderLongVideo(node, state, emit) {
 
   load.onchange = async () => {
     if (!load.files?.[0] || rt.busy || rt.running) return;
+    if (window.DirectorPlusPromptStudio?.isBusy?.(node)) {
+      rt.message = "프롬프트 작성 창 작업이 끝난 뒤에 불러오세요."; load.value = ""; refresh(); return;
+    }
     rt.busy = true;
     refresh();
     try {
@@ -1025,6 +1029,8 @@ export function renderLongVideo(node, state, emit) {
         ? '설정 불러오기 완료 · 재생성 필요 ' + checked.missing.length + '개 · 프롬프트와 시드는 유지했습니다.'
         : '설정 불러오기 완료 · 캐시 확인 완료';
       if (matched) rt.message += ` · Settings를 프로젝트 설정으로 맞춤 (${matched})`;
+      if (importedDirector?.studio && window.DirectorPlusPromptStudio?.importState?.(node, importedDirector.studio))
+        rt.message += " · 프롬프트 작성 창 상태도 불러옴";
       save();
     } catch (e) { rt.message = '설정을 불러오지 못했습니다: ' + e.message; }
     finally { rt.busy = false; refresh(); }
@@ -1039,7 +1045,7 @@ export function renderLongVideo(node, state, emit) {
   } else {
     const download = button(projects, "↓ 완성 영상 열기 / 저장", () => {}); download.disabled = true;
   }
-  element("small", "영상은 실행 후 자동 저장 · .ext는 장면·레퍼런스·캐시 보관 · 모델/Settings는 워크플로우도 함께 저장", projects).className = "dl-muted";
+  element("small", "영상은 실행 후 자동 저장 · .ext는 장면·레퍼런스·캐시·프롬프트 작성 상태 보관 · 모델/Settings는 워크플로우도 함께 저장", projects).className = "dl-muted";
 
   if (rt.message) { const message = element("div", rt.message, panel); message.style.color = "#ffbc80"; }
 

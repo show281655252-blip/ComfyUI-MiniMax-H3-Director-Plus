@@ -740,6 +740,31 @@ export const DirectorPlusPromptStudio = {
       else say(n.text, n.err);
     }
   },
+
+  // .ext projects carry the window state (per-scene shot cards, settings, roles, results, chat).
+  isBusy(node) { return JOBS.has(node); },
+  exportState(node) {
+    const data = node.properties?.[PROP];
+    if (!data) return null;
+    const copy = JSON.parse(JSON.stringify(data));
+    delete copy.notice;
+    return copy;
+  },
+  // Writer / chat LLM settings (Ollama address, models ...) belong to this PC, so the workflow's
+  // current ones are kept; everything else comes from the project.
+  importState(node, incoming) {
+    if (!incoming || typeof incoming !== "object" || JOBS.has(node)) return false;
+    node.properties = node.properties || {};
+    const cur = node.properties[PROP];
+    const next = JSON.parse(JSON.stringify(incoming));
+    delete next.notice;
+    if (cur?.writer) { next.writer = cur.writer; next.writerImported = cur.writerImported; }
+    if (cur?.chat?.llm) next.chat = { ...(next.chat || {}), llm: cur.chat.llm };
+    else if (cur && next.chat) delete next.chat.llm;
+    node.properties[PROP] = next;
+    app.graph?.setDirtyCanvas(true, true);
+    return true;
+  },
 };
 
 window.DirectorPlusPromptStudio = DirectorPlusPromptStudio;
