@@ -189,41 +189,56 @@ export const DirectorPlusPromptStudio = {
     const save = () => { node.properties[PROP] = data; app.graph?.setDirtyCanvas(true, true); };
     let view = null;
 
-    // Long video: every scene keeps its own shot cards, must-happen / must-not, result, report, brief,
-    // revise text and chat log in data.scenes[clip id]. Style and the other scene settings, picture
-    // roles and the writer stay shared. A single video keeps using the top-level fields as before.
+    // Long video: every scene keeps its own scene settings (style, lens, lighting, dialogue, sound,
+    // must / must-not ...), picture roles, shot cards, result, report, brief, revise text and chat log in
+    // data.scenes[clip id]. Only the writer / chat LLM settings stay shared. A single video keeps using
+    // the top-level fields as before.
     const st = node.__directorPlusH3State?.() || {};
     const long = st.long_video?.enabled ? st.long_video : null;
-    const SCENE_SETTINGS = ["must_happen", "must_not"];
     const sceneKey = i => long?.clips?.[i]?.id || `scene-${i}`;
     const nextScene = long ? long.clips.findIndex(c => !c.validated) : -1;
     let current = long ? (Number.isInteger(options.scene) && long.clips[options.scene] ? options.scene : Math.max(0, nextScene)) : -1;
     const blankSlot = () => ({ shots: [blankShot()], prompt: "", previous: "", brief: "", briefReport: "", report: "", revise: "",
-      must_happen: "", must_not: "", chat: { messages: [] } });
+      chat: { messages: [] } });
     const fillSlot = s => {
       for (const [k, v] of Object.entries(blankSlot())) if (s[k] === undefined) s[k] = v;
-      // Picture roles are per scene too (picture 1 can be scene 1's first frame and later scenes' location);
-      // a scene without its own roles starts from the last shared ones.
+      // A scene saved before settings / roles became per scene starts from the shared ones; its own
+      // must / must-not (kept per scene since the first version) move into its settings.
+      if (!s.settings || typeof s.settings !== "object") {
+        s.settings = { ...(data.settings || {}) };
+        for (const k of ["must_happen", "must_not"]) if (s[k] !== undefined) s.settings[k] = s[k];
+      }
+      delete s.must_happen; delete s.must_not;
       if (!s.roles || typeof s.roles !== "object") s.roles = { ...(data.roles || {}) };
       if (!Array.isArray(s.shots) || !s.shots.length) s.shots = [blankShot()];
       if (!Array.isArray(s.chat?.messages)) s.chat = { messages: [] };
       return s;
     };
+    // A scene opened for the first time takes the settings and roles of the scene before it (same style
+    // and picture use carries on); its shot cards start empty ("앞 장면에서 복사" copies those).
+    const newSlot = (d, key) => {
+      const i = long.clips.findIndex((_, j) => sceneKey(j) === key);
+      const prev = i > 0 ? d.scenes[sceneKey(i - 1)] : null;
+      return { ...blankSlot(), settings: { ...(prev?.settings || d.settings || {}) }, roles: { ...(prev?.roles || d.roles || {}) } };
+    };
     if (long) {
       if (!data.scenes) {  // first open since scenes got their own state: the one old state belongs to this scene
         data.scenes = { [sceneKey(current)]: { shots: data.shots, prompt: data.prompt, previous: data.previous, brief: data.brief,
-          briefReport: data.briefReport, report: data.report, revise: data.revise, must_happen: data.settings?.must_happen || "",
-          must_not: data.settings?.must_not || "", roles: { ...(data.roles || {}) }, chat: { messages: data.chat?.messages || [] } } };
+          briefReport: data.briefReport, report: data.report, revise: data.revise, settings: { ...(data.settings || {}) },
+          roles: { ...(data.roles || {}) }, chat: { messages: data.chat?.messages || [] } } };
       }
       const ids = new Set(long.clips.map((_, i) => sceneKey(i)));
       for (const k of Object.keys(data.scenes)) if (!ids.has(k)) delete data.scenes[k];  // scenes deleted from the timeline
     }
     // A scene's state inside a given state object: a job that finishes later writes into the scene it
     // was started for, even if the window now shows another scene (or is closed).
-    const slotIn = (d, key) => long ? fillSlot((d.scenes ||= {})[key] ||= blankSlot()) : d;
+    const slotIn = (d, key) => {
+      if (!long) return d;
+      d.scenes ||= {};
+      return fillSlot(d.scenes[key] ||= newSlot(d, key));
+    };
     const slot = () => slotIn(data, sceneKey(current));
-    const getSetting = key => long && SCENE_SETTINGS.includes(key) ? slot()[key] ?? "" : data.settings[key];
-    const setSetting = (key, v) => { if (long && SCENE_SETTINGS.includes(key)) slot()[key] = v; else data.settings[key] = v; };
+    const settingsOf = () => long ? slot().settings : data.settings;
     const rolesOf = () => long ? slot().roles : data.roles;
     const sceneRefresh = [];  // redraws of the per-scene parts, run when another scene is picked
 
@@ -256,7 +271,8 @@ export const DirectorPlusPromptStudio = {
     if (!CATALOG.available) { loading.innerHTML = ""; loading.append(`PromptDirector가 설치돼 있지 않습니다. `, h("a", { href: CATALOG.pack_url, target: "_blank", text: CATALOG.pack_url })); return; }
     loading.remove();
 
-    for (const [key, spec] of Object.entries(CATALOG.settings)) if (data.settings[key] === undefined) data.settings[key] = spec.default;
+    const allSettings = () => [data.settings, ...(long ? Object.keys(data.scenes || {}).map(k => slotIn(data, k).settings) : [])];
+    for (const s of allSettings()) for (const [key, spec] of Object.entries(CATALOG.settings)) if (s[key] === undefined) s[key] = spec.default;
     // Saved with the pack's old 1200, which cut video-analysed prompts before the sound sections.
     // (Only for states saved before max_tokens was imported; a value taken from the Writer node is kept.)
     if (!data.writerImported && Number(data.writer.max_tokens) === 1200 && CATALOG.writer.max_tokens) data.writer.max_tokens = CATALOG.writer.max_tokens.default;
@@ -268,7 +284,11 @@ export const DirectorPlusPromptStudio = {
     const pictures = () => target.pictures();
 
     // ---------------- scene settings
-    const settingsCard = h("div", { class: "dp-ps-card" }, [h("h3", { text: "장면 설정" })]);
+    const settingsTitle = h("h3", { text: "장면 설정" });
+    const settingsCard = h("div", { class: "dp-ps-card" }, [settingsTitle]);
+    const settingsTitleRefresh = () => { settingsTitle.textContent = long ? `장면 설정 · 장면 ${current + 1}` : "장면 설정"; };
+    sceneRefresh.push(settingsTitleRefresh);
+    settingsTitleRefresh();
     const grid = h("div", { class: "dp-ps-grid" }); settingsCard.append(grid);
     // A sound reference (V+A video or audio on the timeline) already decides the sound; the two
     // checkboxes would only add the style preset's own ambience/score. Turn them off when such a
@@ -281,11 +301,14 @@ export const DirectorPlusPromptStudio = {
       } catch { return ""; }
     })();
     let soundNote = "";
+    // The sound references are the Director's, shared by all scenes, so this applies to every scene.
     if (soundSig && soundSig !== data.soundRefSig) {
-      data.settings.include_soundscape = false; data.settings.include_music = false; data.soundAutoOff = true;
+      for (const s of allSettings()) { s.include_soundscape = false; s.include_music = false; }
+      data.soundAutoOff = true;
       soundNote = "레퍼런스에 소리가 있어 환경음·음악을 껐습니다 (소리는 레퍼런스를 그대로 따릅니다).";
     } else if (!soundSig && data.soundRefSig && data.soundAutoOff) {
-      data.settings.include_soundscape = true; data.settings.include_music = true; data.soundAutoOff = false;
+      for (const s of allSettings()) { s.include_soundscape = true; s.include_music = true; }
+      data.soundAutoOff = false;
       soundNote = "소리 레퍼런스가 없어져 환경음·음악을 다시 켰습니다.";
     }
     data.soundRefSig = soundSig;
@@ -298,28 +321,31 @@ export const DirectorPlusPromptStudio = {
           grid.append(soundCell);
           if (soundNote) grid.append(h("div", { class: "muted", style: "grid-column:2;align-self:center", text: soundNote }));
         }
-        const box2 = h("input", { type: "checkbox", title: spec.tooltip || "" }); box2.checked = !!data.settings[key];
-        box2.onchange = () => { data.settings[key] = box2.checked; save(); };
+        const box2 = h("input", { type: "checkbox", title: spec.tooltip || "" }); box2.checked = !!settingsOf()[key];
+        box2.onchange = () => { settingsOf()[key] = box2.checked; save(); };
+        sceneRefresh.push(() => { box2.checked = !!settingsOf()[key]; });
         soundCell.append(h("label", { class: "dp-ps-field", style: "align-items:center;gap:6px;cursor:pointer", title: spec.tooltip || "" }, [h("span", { text: label }), box2]));
         continue;
       }
-      const perScene = long && SCENE_SETTINGS.includes(key);
-      const field = h("label", { class: "dp-ps-field" + (extra === "wide" ? " wide" : "") }, [h("span", { text: perScene ? `${label} (이 장면만)` : label })]);
+      const field = h("label", { class: "dp-ps-field" + (extra === "wide" ? " wide" : "") }, [h("span", { text: label })]);
       if (spec.kind === "combo") {
         const sel = h("select", { title: spec.tooltip || "" });
-        const fill = filter => { sel.innerHTML = ""; for (const o of spec.options) if (!filter || String(o).toLowerCase().includes(filter) || o === data.settings[key]) sel.append(h("option", { value: o, text: o })); sel.value = data.settings[key]; };
+        let search = null;
+        const fill = filter => { sel.innerHTML = ""; const v = settingsOf()[key]; for (const o of spec.options) if (!filter || String(o).toLowerCase().includes(filter) || o === v) sel.append(h("option", { value: o, text: o })); sel.value = v; };
         fill("");
-        sel.onchange = () => { data.settings[key] = sel.value; save(); };
-        if (extra === "search") field.append(h("input", { type: "text", placeholder: "검색…", oninput: e => fill(e.target.value.trim().toLowerCase()) }));
+        sel.onchange = () => { settingsOf()[key] = sel.value; save(); };
+        if (extra === "search") { search = h("input", { type: "text", placeholder: "검색…", oninput: e => fill(e.target.value.trim().toLowerCase()) }); field.append(search); }
+        sceneRefresh.push(() => { if (search) search.value = ""; fill(""); });
         field.append(sel);
       } else if (spec.kind === "boolean") {
-        const box2 = h("input", { type: "checkbox" }); box2.checked = !!data.settings[key];
-        box2.onchange = () => { data.settings[key] = box2.checked; save(); };
+        const box2 = h("input", { type: "checkbox" }); box2.checked = !!settingsOf()[key];
+        box2.onchange = () => { settingsOf()[key] = box2.checked; save(); };
+        sceneRefresh.push(() => { box2.checked = !!settingsOf()[key]; });
         field.append(h("div", { class: "chk" }, [box2]));
       } else {
-        const area = h("textarea", { title: spec.tooltip || "" }); area.value = getSetting(key) ?? "";
-        area.oninput = () => { setSetting(key, area.value); save(); };
-        if (perScene) sceneRefresh.push(() => { area.value = getSetting(key) ?? ""; });
+        const area = h("textarea", { title: spec.tooltip || "" }); area.value = settingsOf()[key] ?? "";
+        area.oninput = () => { settingsOf()[key] = area.value; save(); };
+        sceneRefresh.push(() => { area.value = settingsOf()[key] ?? ""; });
         field.append(area);
       }
       grid.append(field);
@@ -451,16 +477,16 @@ export const DirectorPlusPromptStudio = {
     };
     const shotsTitle = h("span", { text: "샷 구성" });
     // Start a new scene from the one before it (its shot cards and must / must-not), then edit.
-    const copyPrev = h("button", { class: "small", text: "앞 장면에서 복사", title: "앞 장면의 샷 카드(대사 포함), 필수·금지 사항, 레퍼런스 역할을 이 장면으로 복사합니다." });
+    const copyPrev = h("button", { class: "small", text: "앞 장면에서 복사", title: "앞 장면의 장면 설정, 레퍼런스 역할, 샷 카드(대사 포함)를 이 장면으로 복사합니다." });
     copyPrev.onclick = () => {
       if (!long || current < 1) return;
       const prev = slotIn(data, sceneKey(current - 1)), here = slot();
       const filled = here.shots.some(s => (s.text || "").trim() || (s.lines || []).some(l => (l.text || "").trim()) || (s.acts || []).some(a => a.act));
-      if (filled && !window.confirm(`장면 ${current + 1}의 샷 카드를 장면 ${current}의 내용으로 바꿀까요?`)) return;
+      if (filled && !window.confirm(`장면 ${current + 1}의 장면 설정·레퍼런스 역할·샷 카드를 장면 ${current}의 내용으로 바꿀까요?`)) return;
       here.shots = JSON.parse(JSON.stringify(prev.shots));
-      for (const k of SCENE_SETTINGS) here[k] = prev[k] || "";
+      here.settings = { ...prev.settings };
       here.roles = { ...prev.roles };
-      save(); sceneRefresh.forEach(f => f()); say(`장면 ${current}의 샷 카드, 필수·금지 사항, 레퍼런스 역할을 복사했습니다.`);
+      save(); sceneRefresh.forEach(f => f()); say(`장면 ${current}의 장면 설정, 레퍼런스 역할, 샷 카드를 복사했습니다.`);
     };
     const shotsHeadRefresh = () => {
       shotsTitle.textContent = long ? `샷 구성 · 장면 ${current + 1}` : "샷 구성";
@@ -525,8 +551,7 @@ export const DirectorPlusPromptStudio = {
       const tw = node.widgets?.find(w => w.name === "timeline_data"), bw = node.widgets?.find(w => w.name === "builder_state");
       const shots = slot().shots.map(s => ({ ...s, acts: (s.acts || []).filter(a => a.act), lines: (s.lines || []).filter(l => (l.text || "").trim()) }));
       const refs = pictures().slice(0, REF_MAX).map((_, i) => ({ n: i + 1, role: rolesOf()[i + 1] || "" }));
-      const settings = { ...data.settings };
-      for (const k of SCENE_SETTINGS) settings[k] = getSetting(k) ?? "";
+      const settings = { ...settingsOf() };
       return { director: { id: node.id, mode: target.mode(), duration: duration(), timeline_data: tw?.value || "{}", builder_state: bw?.value || "{}" },
         shots: { version: 1, shots, refs }, settings, writer: { ...data.writer, model: modelSel.value } };
     };
