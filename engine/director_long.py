@@ -37,6 +37,7 @@ from . import director_lbh
 from . import director_audio_regen
 from . import director_derope
 from . import director_face_refine
+from . import director_color_anchor
 
 from .motion_context_disk import MiniMaxH3MotionContextDiskFinalDecode, _find_ffmpeg, _comfy_media_item, _video_output_from_path, normalize_full_batch_export_profile
 
@@ -572,6 +573,11 @@ class DirectorPlusVideoOutput:
         video = result["result"][0]
 
         path = Path(video.get_stream_source())
+
+        if not long_cache.get("director_source"):
+
+            # Optional: colour-match scenes 2+ to scene 1 in the saved video (output only).
+            director_color_anchor.apply_if_enabled(path, director_guide["long_video"], result["ui"]["h3_preview_info"][0]["color_timeline"], crf=quality)
 
         if long_cache.get("director_source"):
 
