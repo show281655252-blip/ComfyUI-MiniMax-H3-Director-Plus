@@ -468,7 +468,7 @@ export function renderLongVideo(node, state, emit) {
     if (label) element("span", label, g).className = "dl-tlabel";
     return g;
   };
-  const makeGroup = toolGroup(""), approveGroup = toolGroup("승인"), viewGroup = toolGroup("보기"), colorGroup = toolGroup("색");
+  const makeGroup = toolGroup(""), approveGroup = toolGroup("승인"), viewGroup = toolGroup("보기");
   button(makeGroup, "+ 장면 추가", () => { s.clips.push(newClip(hasExternal())); rt.selected = s.clips.length - 1; });
   if (window.DirectorPlusPromptStudio) {
     const studio = element("button", "✍ 프롬프트 작성", makeGroup);
@@ -580,14 +580,6 @@ export function renderLongVideo(node, state, emit) {
   }, viewGroup);
   foldButton.setAttribute("aria-pressed", String(foldOn));
   foldButton.className = "dl-switch" + (foldOn ? " on" : "");
-  // Output-only: the final video's scenes 2+ are colour-matched to scene 1 (cache and generation unchanged).
-  const anchorOn = !!s.color_anchor;
-  const anchorButton = bulkButton("장면 1 색 기준", `${anchorOn ? "켜짐" : "꺼짐"} — 켜면 완성 영상을 저장할 때 장면 2부터의 색(R·G·B 평균과 대비)을 장면 1에 맞춥니다. 장면을 이어 갈수록 색이 조금씩 변하는 것을 줄입니다. 생성·캐시는 그대로이고 다음 실행 때 반영됩니다. 장면 카드에서 색을 직접 조정한 장면과 조명이 일부러 바뀌는 장면(해 질 녘 등)은 맞추지 않는 편이 좋습니다. 누르면 ${anchorOn ? "끕니다" : "켭니다"}.`, async () => {
-    s.color_anchor = !anchorOn;
-    return s.color_anchor ? "장면 1 색 기준 켬 · 다음 실행에서 완성 영상에 적용됩니다." : "장면 1 색 기준 끔";
-  }, colorGroup);
-  anchorButton.setAttribute("aria-pressed", String(anchorOn));
-  anchorButton.className = "dl-switch" + (anchorOn ? " on" : "");
   title.append(clearButton); // destructive action last, at the far right
 
   const preview = rt.preview || s.last_preview?.video;
