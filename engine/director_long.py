@@ -37,6 +37,7 @@ from . import director_lbh
 from . import director_audio_regen
 from . import director_derope
 from . import director_face_refine
+from . import director_refine
 
 from .motion_context_disk import MiniMaxH3MotionContextDiskFinalDecode, _find_ffmpeg, _comfy_media_item, _video_output_from_path, normalize_full_batch_export_profile
 
@@ -370,6 +371,7 @@ class DirectorPlusGenerate:
             director_audio_regen={"config": audio_regen, "model": audio_regen_model} if audio_regen else None,
             director_derope=derope,
             director_face_refine=face_refine,
+            director_refine=director_refine.settings(guide["long_video"].get("refine")),
             director_export_profile=output_export_profile(prompt, unique_id), **media,
 
         )

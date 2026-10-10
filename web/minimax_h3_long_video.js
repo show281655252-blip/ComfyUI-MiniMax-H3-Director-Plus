@@ -468,7 +468,7 @@ export function renderLongVideo(node, state, emit) {
     if (label) element("span", label, g).className = "dl-tlabel";
     return g;
   };
-  const makeGroup = toolGroup(""), approveGroup = toolGroup("승인"), viewGroup = toolGroup("보기");
+  const makeGroup = toolGroup(""), approveGroup = toolGroup("승인"), viewGroup = toolGroup("보기"), labGroup = toolGroup("실험");
   button(makeGroup, "+ 장면 추가", () => { s.clips.push(newClip(hasExternal())); rt.selected = s.clips.length - 1; });
   if (window.DirectorPlusPromptStudio) {
     const studio = element("button", "✍ 프롬프트 작성", makeGroup);
@@ -580,6 +580,16 @@ export function renderLongVideo(node, state, emit) {
   }, viewGroup);
   foldButton.setAttribute("aria-pressed", String(foldOn));
   foldButton.className = "dl-switch" + (foldOn ? " on" : "");
+  // Experimental (xyzDist/H3-LongTakeNoCuts idea): resample each continued scene at a low denoise
+  // so the next scene inherits a refreshed tail. Changing it resets generated, unapproved scenes.
+  const refineOn = !!s.refine?.enabled;
+  const refineButton = bulkButton("이어받기 보정", `${refineOn ? "켜짐" : "꺼짐"} — 장면 2부터, 생성한 장면을 한 번 더 짧게 샘플링(${s.refine?.steps ?? 4}스텝 · denoise ${s.refine?.denoise ?? 0.55})해서 장면을 이어 갈수록 인물이 뭉개지는 것을 줄입니다. 앞 장면에서 이어받은 구간은 그대로 두고 그 뒤로 서서히 보정본으로 바뀌며, 소리는 원래 것을 씁니다. 장면마다 샘플링이 그만큼 늘어나고 배경이 조금 바뀔 수 있습니다. 바꾸면 승인하지 않은 생성 장면은 다시 만듭니다. 누르면 ${refineOn ? "끕니다" : "켭니다"}.`, async () => {
+    s.refine = { ...(s.refine || {}), enabled: !refineOn, steps: s.refine?.steps ?? 4, denoise: s.refine?.denoise ?? 0.55 };
+    const reset = await rt.invalidateUnapproved?.();
+    return (s.refine.enabled ? "이어받기 보정 켬" : "이어받기 보정 끔") + (reset ? " · 승인하지 않은 생성 장면을 다시 만들도록 초기화했습니다." : "");
+  }, labGroup);
+  refineButton.setAttribute("aria-pressed", String(refineOn));
+  refineButton.className = "dl-switch" + (refineOn ? " on" : "");
   title.append(clearButton); // destructive action last, at the far right
 
   const preview = rt.preview || s.last_preview?.video;

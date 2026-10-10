@@ -5326,6 +5326,17 @@ class MiniMaxH3Extender:
                 denoised=bool(lbh) and not director_lbh.full_first_pass(lbh),
             )
 
+            # Director Plus (experimental): refresh a continued scene before anything inherits it.
+            long_refine = kwargs.get("director_refine")
+            if long_refine and trim_frames:
+                from . import director_refine
+                _send_extender_progress(owner, i, len(clips), "sampling",
+                                        f"Refine clip {i + 1}/{len(clips)}")
+                sampled, refine_report = director_refine.refine(
+                    clip_model, positive, sampled, cfg["seed"], str(sampler_name),
+                    frame_count, trim_frames, long_refine, _sample_h3)
+                print(f"H3 Extender: Clip {i + 1} refine: {refine_report}")
+
             derope = kwargs.get("director_derope")
             if derope and cfg.get("derope", True) is False:
                 print(f"H3 Extender: Clip {i + 1} Motion Lab de-rope skipped (off on the scene card)")
