@@ -24,6 +24,8 @@ FINE_STEP = 0.25        # short clips: back-and-forth actions (sweeping, waving)
 MAX_FRAMES = 30          # 15 s, H3's reference-video limit
 FRAME_MAX_SIDE = 448
 _writer_args = contextvars.ContextVar("director_plus_writer_args", default=None)
+# <Audio n> numbers of separate audio references (voice candidates) seen by the current writer run
+_voice_audio = contextvars.ContextVar("director_plus_voice_audio", default=None)
 _cache = {}
 
 SYSTEM = (
@@ -267,6 +269,7 @@ def wrap_read_director(link):
             logging.info("[Director Plus] Prompt Writer: <Video %d> motion analysis %s (%d chars).",
                          number, "from cache" if cached else f"in {time.time() - began:.0f}s", len(text))
         out["other_labels"] = _soundtrack_rules(labels)
+        _voice_audio.set([int(m.group(1)) for m in (re.match(r"<Audio (\d+)>: (?!soundtrack of)", str(x)) for x in labels) if m])
         return out
 
     read_director._director_plus_video = True
@@ -289,9 +292,26 @@ def fix_soundscape_speech(prompt):
         return prompt, []
     body = match.group(2)
     sentences = re.split(r"(?<=[.!?;])\s+", body.strip())
-    # the V+A rule's own sentence ("follows <Audio n> (fully_copy) ... do not invent ... dialogue") stays
-    keep = [s for s in sentences if ("<Audio" in s and "fully" in s.lower()) or not _SPEECH.search(s)]
-    dropped = [s for s in sentences if s not in keep]
+    keep, dropped = [], []
+    for s in sentences:
+        # the V+A rule's own sentence ("follows <Audio n> (fully_copy) ... do not invent ... dialogue") stays
+        if ("<Audio" in s and "fully" in s.lower()) or not _SPEECH.search(s):
+            keep.append(s)
+            continue
+        # "…stone during the sweep, followed by a still atmosphere as the character stops and speaks."
+        # keeps the part before the clause that brings the speech in, when that part says enough
+        head = None
+        for cut in re.finditer(r",\s+|\s+(?:as|while|when|followed by|then|until|before|after)\s+", s):
+            part = s[:cut.start()].strip()
+            if _SPEECH.search(part):
+                break
+            if len(part.split()) >= 4:
+                head = part
+        if head:
+            keep.append(head.rstrip(",;") + ".")
+            dropped.append(s[len(head):].strip(" ,;."))
+        else:
+            dropped.append(s)
     if not dropped or not keep:
         return prompt, []
     text = " ".join(keep)
@@ -301,9 +321,77 @@ def fix_soundscape_speech(prompt):
     return prompt[:match.start(2)] + " " + text + trailing + prompt[match.end(2):], dropped
 
 
-def _fix_writer_result(writer_class, result):
-    """Apply the summary-bracket and soundscape-speech fixes to the writer's prompt output (tuple, or
-    {"ui", "result"} dict) and note them in the report."""
+_FIELDS = r"(?:subject_definitions|summary|retention_analysis|detailed_description|overall_soundscape|non_diegetic_music)"
+
+
+def _field(prompt, name):
+    """(start, end) of a field's body (after "name:") up to the next field, or None."""
+    m = re.search(rf"(?mis)^{name}\s*:(.*?)(?=^\s*{_FIELDS}\s*:|\Z)", prompt)
+    return (m.start(1), m.end(1)) if m else None
+
+
+def ensure_voice_binding(prompt, voices):
+    """The writer sometimes drops the voice reference entirely. With exactly one separate audio
+    reference, dialogue present and no <Audio n> anywhere in the prompt, bind it the spec's way:
+    subject definition, retention line and every dialogue sentence. Several voices or several speakers
+    are ambiguous, so they only get a warning. Returns (text, notes)."""
+    if not voices or not prompt or "<d>" not in prompt:
+        return prompt, []
+    if any(f"<Audio {n}>" in prompt for n in voices):
+        return prompt, []
+    if len(voices) != 1:
+        return prompt, ["Director Plus [warn]: audio references " + ", ".join(f"<Audio {n}>" for n in voices)
+                        + " are not cited; several voices — bind them by hand."]
+    ids = sorted(set(re.findall(r"\(S(\d+)\)", prompt)))
+    if len(ids) > 1:
+        return prompt, [f"Director Plus [warn]: <Audio {voices[0]}> is not cited and there are several speakers — bind it by hand."]
+    n, sid = voices[0], f"S{ids[0] if ids else 1}"
+    desc = _field(prompt, "detailed_description")
+    defs = _field(prompt, "subject_definitions")
+    if not desc or not defs or "<d>" not in prompt[desc[0]:desc[1]]:
+        return prompt, []
+    before = prompt[desc[0]:desc[0] + prompt[desc[0]:desc[1]].index("<d>")]
+    subjects = re.findall(r"<Subject (\d+)>", before) or re.findall(r"<Subject (\d+)>", prompt[defs[0]:defs[1]])
+    if not subjects:
+        return prompt, []
+    k = subjects[-1]
+    who, bind = f"<Subject {k}> ({sid})", f"<Audio {n}> is the voice-timbre reference for <Subject {k}> ({sid})"
+
+    body = prompt[desc[0]:desc[1]]
+    for pos in reversed([m.start() for m in re.finditer(r"<d>", body)]):
+        # the dialogue sentence starts after the previous sentence end (". ", "! ", "? ", "</d>" or a line break)
+        start = max([body.rfind(sep, 0, pos) + len(sep) for sep in (". ", "! ", "? ", "\n", "</d>")] + [0])
+        head = body[start:pos]
+        if f"<Subject {k}> ({sid})" not in head:
+            if f"<Subject {k}>" in head:
+                head = head.replace(f"<Subject {k}>", who, 1)
+            else:
+                head = re.sub(r"\b([Ss]he|[Hh]e|[Tt]hey)\b", who, head, count=1)
+        head = re.sub(r"[\s:,]*$", "", head)
+        body = body[:start] + f"{head}, in the voice timbre referenced from <Audio {n}>: " + body[pos:]
+    # a period after </d> keeps <Audio n> apart from what follows (the spec checker reads up to the next ".")
+    body = re.sub(r"</d>(?!\s*\.)", "</d>.", body)
+    text = prompt[:desc[0]] + body + prompt[desc[1]:]
+    # subject definition: append the binding to the speaker's line
+    defs = _field(text, "subject_definitions")
+    block = text[defs[0]:defs[1]]
+    line = re.search(rf"(?m)^[ \t]*<Subject {k}>[^\n]*", block)
+    if line:
+        end = defs[0] + line.end()
+        text = text[:end].rstrip() + f" {bind}." + text[end:]
+    # retention line
+    ret = _field(text, "retention_analysis")
+    if ret:
+        tail = text[ret[0]:ret[1]].rstrip()
+        cut = ret[0] + len(tail)
+        text = text[:cut] + f"\n<Audio {n}>: reference. {bind}; the spoken words come only from the dialogue line." + text[cut:]
+    return text, [f"Director Plus: the writer left out <Audio {n}>; bound it to <Subject {k}> ({sid}) in subject_definitions, "
+                  "retention_analysis and the dialogue."]
+
+
+def _fix_writer_result(writer_class, result, voices=None):
+    """Apply the summary-bracket, soundscape-speech and voice-binding fixes to the writer's prompt output
+    (tuple, or {"ui", "result"} dict) and note them in the report. `voices` = separate audio refs."""
     values = result.get("result") if isinstance(result, dict) else result
     if not isinstance(values, (tuple, list)) or not values:
         return result
@@ -311,10 +399,11 @@ def _fix_writer_result(writer_class, result):
     i_prompt = names.index("prompt") if "prompt" in names else 0
     text, bracket = fix_summary_bracket(str(values[i_prompt]))
     text, dropped = fix_soundscape_speech(text)
-    if not bracket and not dropped:
+    text, voice_notes = ensure_voice_binding(text, voices or [])
+    if not bracket and not dropped and not voice_notes:
         return result
     notes = (["Director Plus: summary task type wrapped in brackets."] if bracket else []) + \
-            [f"Director Plus: removed speech from overall_soundscape: \"{s}\"" for s in dropped]
+            [f"Director Plus: removed speech from overall_soundscape: \"{s}\"" for s in dropped] + voice_notes
     values = list(values)
     values[i_prompt] = text
     if "report" in names and names.index("report") < len(values):
@@ -335,14 +424,17 @@ def wrap_writer(writer_class):
     @functools.wraps(original)  # keeps the signature callers inspect (Prompt Studio)
     def run(self, *args, **kwargs):
         token = set_writer_args(kwargs)
+        voice_token = _voice_audio.set(None)  # read_director fills it with the separate audio refs
         try:
             result = original(self, *args, **kwargs)
+            voices = _voice_audio.get()
         finally:
             reset_writer_args(token)
+            _voice_audio.reset(voice_token)
         try:
-            return _fix_writer_result(writer_class, result)
-        except Exception:  # never break the writer over a cosmetic fix
-            logging.exception("[Director Plus] summary bracket fix skipped")
+            return _fix_writer_result(writer_class, result, voices)
+        except Exception:  # never break the writer over a post-fix
+            logging.exception("[Director Plus] prompt post-fix skipped")
             return result
 
     run._director_plus_video = True
