@@ -590,6 +590,25 @@ export function renderLongVideo(node, state, emit) {
   }, labGroup);
   refineButton.setAttribute("aria-pressed", String(refineOn));
   refineButton.className = "dl-switch" + (refineOn ? " on" : "");
+  // Steps / denoise of the refine resample (engine clamps to 1-20 and 0.05-1.0). A change resets
+  // generated, unapproved scenes like the switch does.
+  const refineField = (label, key, fallback, min, max, step, tip) => {
+    element("span", label, labGroup).className = "dl-tlabel";
+    const input = element("input", null, labGroup);
+    Object.assign(input, { type: "number", min, max, step, value: s.refine?.[key] ?? fallback, title: tip });
+    input.style.cssText = "width:62px;padding:4px 6px!important";
+    input.disabled = rt.busy || rt.running;
+    input.onchange = async () => {
+      const value = Math.min(max, Math.max(min, Number(input.value) || fallback));
+      if (value === (s.refine?.[key] ?? fallback)) { input.value = value; return; }
+      s.refine = { enabled: !!s.refine?.enabled, steps: s.refine?.steps ?? 5, denoise: s.refine?.denoise ?? 0.55, [key]: value };
+      const reset = s.refine.enabled && await rt.invalidateUnapproved?.();
+      rt.message = `이어받기 보정 ${label} ${value}` + (reset ? " · 승인하지 않은 생성 장면을 다시 만들도록 초기화했습니다." : "");
+      save(); refresh();
+    };
+  };
+  refineField("스텝", "steps", 5, 1, 20, 1, "이어받기 보정의 다시 그리기 스텝 수 (1~20, 기본 5). 늘리면 더 깨끗해지지만 장면마다 시간이 늘어납니다.");
+  refineField("denoise", "denoise", 0.55, 0.05, 1, 0.05, "이어받기 보정의 세기 (0.05~1.0, 기본 0.55). 높이면 열화를 더 털어내지만 동작·배경이 더 많이 바뀝니다.");
   title.append(clearButton); // destructive action last, at the far right
 
   const preview = rt.preview || s.last_preview?.video;
