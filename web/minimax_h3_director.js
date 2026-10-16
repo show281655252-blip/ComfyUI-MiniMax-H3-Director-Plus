@@ -1472,7 +1472,13 @@ function install(node) {
   node.__directorPlusPromptTarget = {
     mode, setStatus, hasExternalPrompt,
     duration: () => Number(node.widgets?.find(w => w.name === "duration")?.value) || null,
-    pictures: () => activeItems().filter(item => item.type === "image" && !item._audioEcho && !isLockedSlot(item)),
+    // In slot order, like the timeline's Picture labels and the generated <Picture n> numbering
+    // (a picture removed and put back in the same slot keeps its number).
+    pictures: () => activeItems()
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item.type === "image" && !item._audioEcho && !isLockedSlot(item))
+      .sort((a, b) => (Number(a.item.slot ?? a.index) - Number(b.item.slot ?? b.index)) || (a.index - b.index))
+      .map(({ item }) => item),
     applyPrompt: (text) => {
       builderState.simple_prompt = String(text || "");
       builderState.prompt_mode = "simple";
