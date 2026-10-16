@@ -257,6 +257,23 @@ export function renderLongVideo(node, state, emit) {
     save(); refresh();
   };
 
+  // Per-scene picture use: the Director's IMAGE references are shared by every scene; a scene can leave
+  // some out (clip.exclude_pictures = Picture numbers, slot order). <Picture n> numbering stays the same.
+  rt.pictures = () => node.__directorPlusPromptTarget?.pictures?.() || [];
+  rt.scenePicturesOff = index => (rt.state?.long_video?.clips?.[index]?.exclude_pictures || []).map(Number);
+  rt.setScenePictureUsed = async (index, n, used) => {
+    const long = rt.state?.long_video;
+    const clip = long?.clips?.[index];
+    if (!clip) throw new Error("장면을 찾을 수 없습니다.");
+    const off = new Set((clip.exclude_pictures || []).map(Number));
+    if (off.has(n) === !used) return;
+    if (clip.validated) throw new Error(`장면 ${index + 1}은 승인돼 있어 바꿀 수 없습니다. 먼저 승인을 해제하세요.`);
+    if (long.cache_owner && (rt.cached || []).includes(clip.id)) await invalidate(index);
+    used ? off.delete(n) : off.add(n);
+    if (off.size) clip.exclude_pictures = [...off].sort((a, b) => a - b); else delete clip.exclude_pictures;
+    save(); refresh();
+  };
+
   // Tick/untick approval without touching the cache (Extender "Validated" behaviour).
   const setValidated = async (index, validated) => {
     if (!s.cache_owner) throw new Error("먼저 이 장면을 생성하세요.");
@@ -876,6 +893,25 @@ export function renderLongVideo(node, state, emit) {
       "ON: 이 장면의 얼굴을 찾아 크게 잘라 다시 그린 뒤 붙입니다. 얼굴이 작거나 흐트러진 장면에 효과가 크고, 이미 깔끔한 얼굴은 조금 부드러워질 수 있습니다(장면당 샘플링 한 번 추가). 얼굴이 안 보이는 장면은 그대로 둡니다. OFF: 그대로 생성합니다.");
     sceneSwitch("derope", "🌀 모션랩 (빠른 동작 보정)", "derope_enabled", "🌀 Motion Lab (de-rope)",
       "ON: 이 장면의 빠른 동작 구간을 늘려 다시 생성해 뭉개짐을 줄입니다(시간 약 3배). OFF: 이 장면은 그대로 생성합니다.");
+
+    // Which of the Director's IMAGE references this scene uses (all by default).
+    const pics = rt.pictures();
+    if (pics.length) {
+      const off = new Set((c.exclude_pictures || []).map(Number));
+      const row = element("div", null, card); row.className = "dl-card-row";
+      element("span", "🖼 이 장면 그림", row).className = "dl-label";
+      element("span", null, row).className = "dl-spacer";
+      pics.forEach((item, k) => {
+        const n = k + 1, used = !off.has(n);
+        const chip = button(row, used ? `${n}` : `${n} 빠짐`, async () => {
+          if (c.validated) return;
+          await rt.setScenePictureUsed(i, n, !used);
+        });
+        chip.className = "dl-toggle"; chip.setAttribute("aria-pressed", String(used));
+        chip.disabled ||= c.validated;
+        chip.title = `<Picture ${n}> ${String(item.value || "").split("/").pop()} — ${used ? "이 장면에서 씀" : "이 장면에서 뺌"}. 누르면 ${used ? "이 장면에서만 뺍니다" : "다시 씁니다"}. 다른 장면과 <Picture> 번호는 그대로이고, 바꾸면 이 장면부터 다시 생성합니다.`;
+      });
+    }
 
     const foot = element("div", null, card); foot.className = "dl-card-row";
     const openGroup = groups.find(g => i >= g.a && i <= g.b && isOpen(g));

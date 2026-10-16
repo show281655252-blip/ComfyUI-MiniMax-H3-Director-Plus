@@ -359,17 +359,31 @@ export const DirectorPlusPromptStudio = {
     if (!pics.length) refsCard.append(h("div", { class: "muted", text: "Director 타임라인에 이미지 레퍼런스가 없습니다. 영상 레퍼런스는 작성할 때 자동으로 분석합니다." }));
     const refsBox = h("div", { class: "refs" }); refsCard.append(refsBox);
     const roleSelects = [];
+    // Long video: a scene can leave a picture out entirely (the scene card's 「🖼 이 장면 그림」 row).
+    const OFF = "__off";
+    const offIn = () => long ? new Set(node.__directorLong?.scenePicturesOff?.(current) || []) : new Set();
+    const roleValue = n => offIn().has(n) ? OFF : (rolesOf()[n] || "");
     pics.slice(0, REF_MAX).forEach((item, i) => {
       const n = i + 1, sel = h("select", { title: "이 이미지를 무엇에 쓸지 정합니다" + (long ? " (이 장면만)" : "") });
       for (const r of rows("ref_role")) sel.append(h("option", { value: r.key, text: r.ko, title: r.tip || "" }));
-      sel.value = rolesOf()[n] || "";
-      sel.onchange = () => { rolesOf()[n] = sel.value; save(); };
+      if (long && node.__directorLong?.setScenePictureUsed)
+        sel.append(h("option", { value: OFF, text: "사용 안 함 (이 장면에서 빼기)", title: "이 장면 생성에 이 그림을 넣지 않습니다. 다른 장면과 <Picture> 번호는 그대로입니다." }));
+      sel.value = roleValue(n);
+      sel.onchange = async () => {
+        const wasOff = offIn().has(n), nowOff = sel.value === OFF;
+        try {
+          if (wasOff !== nowOff) await node.__directorLong.setScenePictureUsed(current, n, !nowOff);
+          if (!nowOff) rolesOf()[n] = sel.value;
+          save();
+          if (wasOff !== nowOff) say(nowOff ? `장면 ${current + 1}에서 이미지 ${n}을 뺐습니다(생성에 넣지 않음).` : `장면 ${current + 1}에서 이미지 ${n}을 다시 씁니다.`);
+        } catch (e) { sel.value = roleValue(n); say(e.message, true); }
+      };
       roleSelects.push([n, sel]);
       refsBox.append(h("div", { class: "ref" }, [h("img", { src: viewUrl(item.value), alt: "" }), h("div", { class: "dp-ps-field", style: "flex:1" }, [h("span", { text: `이미지 ${n} · <Picture ${n}>` }), sel])]));
     });
     const refsRefresh = () => {
       refsTitle.textContent = long ? `레퍼런스 역할 · 장면 ${current + 1}` : "레퍼런스 역할";
-      for (const [n, sel] of roleSelects) sel.value = rolesOf()[n] || "";
+      for (const [n, sel] of roleSelects) sel.value = roleValue(n);
     };
     sceneRefresh.push(refsRefresh);
     refsRefresh();
@@ -550,8 +564,14 @@ export const DirectorPlusPromptStudio = {
     const payload = () => {
       const tw = node.widgets?.find(w => w.name === "timeline_data"), bw = node.widgets?.find(w => w.name === "builder_state");
       const shots = slot().shots.map(s => ({ ...s, acts: (s.acts || []).filter(a => a.act), lines: (s.lines || []).filter(l => (l.text || "").trim()) }));
-      const refs = pictures().slice(0, REF_MAX).map((_, i) => ({ n: i + 1, role: rolesOf()[i + 1] || "" }));
+      const off = offIn();
+      const refs = pictures().slice(0, REF_MAX).map((_, i) => ({ n: i + 1, role: off.has(i + 1) ? "" : (rolesOf()[i + 1] || "") }));
       const settings = { ...settingsOf() };
+      // Pictures left out of this scene are not in its generation; keep the writer from using them.
+      if (off.size) {
+        const tags = [...off].sort((a, b) => a - b).map(n => `<Picture ${n}>`).join(", ");
+        settings.must_not = [settings.must_not, `Do not mention or use ${tags} in this scene; ${off.size > 1 ? "these references are" : "this reference is"} not used here.`].filter(s => String(s || "").trim()).join("\n");
+      }
       return { director: { id: node.id, mode: target.mode(), duration: duration(), timeline_data: tw?.value || "{}", builder_state: bw?.value || "{}" },
         shots: { version: 1, shots, refs }, settings, writer: { ...data.writer, model: modelSel.value } };
     };
@@ -574,12 +594,15 @@ export const DirectorPlusPromptStudio = {
     });
     const writeBtn = act("프롬프트 작성", "primary", async () => {
       if (!modelSel.value) throw new Error("Ollama 모델을 고르세요.");
-      const body = payload(), scene = jobScene();
+      const body = payload(), scene = jobScene(), offAtStart = [...offIn()];
       await runJob(node, { kind: "write", label: `작성 중${scene.label ? ` · ${scene.label}` : ""} (영상 레퍼런스가 있으면 분석 포함, 1~2분)` }, () => getJSON("/director_plus/prompt_studio/write", body), (d, r) => {
         const s = slotIn(d, scene.key);
         if (s.prompt && s.prompt !== r.prompt) s.previous = s.prompt;
         s.prompt = r.prompt; s.brief = r.brief; s.briefReport = r.brief_report; s.report = r.report;
-        return r.truncated ? { text: sceneNote(scene, truncatedText(r)), err: true, openReport: true } : { text: sceneNote(scene, `작성 완료 (${r.seconds}초). 확인한 뒤 「적용」을 누르세요.`) };
+        if (r.truncated) return { text: sceneNote(scene, truncatedText(r)), err: true, openReport: true };
+        const stray = offAtStart.filter(n => String(r.prompt || "").includes(`<Picture ${n}>`));
+        if (stray.length) return { text: sceneNote(scene, `작성 완료 (${r.seconds}초) — 단, 이 장면에서 뺀 ${stray.map(n => `<Picture ${n}>`).join(", ")}이 결과에 들어 있습니다. 그 부분을 지우거나 고친 뒤 「적용」하세요.`), err: true };
+        return { text: sceneNote(scene, `작성 완료 (${r.seconds}초). 확인한 뒤 「적용」을 누르세요.`) };
       });
     });
     const applyNow = async () => {

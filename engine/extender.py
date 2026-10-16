@@ -2115,6 +2115,9 @@ def _parse_clips_json(value: str, generation_mode="ref2va", motion_context=True)
                 "derope": raw.get("derope") is not False,
                 "audio_regen": raw.get("audio_regen") is not False,
                 "face_refine": raw.get("face_refine") is not False,
+                # Director Plus: global Picture numbers this scene leaves out.
+                "exclude_pictures": sorted({int(n) for n in (raw.get("exclude_pictures") or [])
+                                            if str(n).lstrip("-").isdigit() and 1 <= int(n) <= MAX_IMAGE_REFS}),
                 "local_refs": _normalize_local_refs(raw.get("local_refs")),
                 "first_frame": _normalize_ref_descriptor(raw.get("first_frame")),
                 "last_frame": _normalize_ref_descriptor(raw.get("last_frame")),
@@ -5114,6 +5117,21 @@ class MiniMaxH3Extender:
             clip_ref_video_audios = list(ref_video_audios)
 
             local_visual = False
+            # Director Plus: leave some shared pictures out of this scene. The visual conditioning is
+            # rebuilt like for local refs, and <Picture n> keeps its global number (tags are remapped
+            # to the pictures actually present).
+            excluded = [n for n in cfg.get("exclude_pictures") or [] if clip_refs[n - 1] is not None]
+            if excluded:
+                for n in excluded:
+                    clip_refs[n - 1] = None
+                local_visual = True
+                print(f"H3 Extender: Clip {i + 1} leaves out Picture {', '.join(map(str, excluded))}")
+                stray = [n for n in excluded if f"<Picture {n}>" in str(cfg.get("prompt") or "")]
+                if stray:
+                    _LOG.warning(
+                        "H3 Extender: Clip %d prompt still mentions %s, which is left out of this scene.",
+                        i + 1, ", ".join(f"<Picture {n}>" for n in stray),
+                    )
             for item in local_refs.get("images", []):
                 slot = int(item["slot"])
                 if clip_refs[slot - 1] is not None:
