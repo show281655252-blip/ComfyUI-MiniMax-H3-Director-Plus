@@ -600,32 +600,63 @@ export function renderLongVideo(node, state, emit) {
   // Experimental (xyzDist/H3-LongTakeNoCuts idea): resample each continued scene at a low denoise
   // so the next scene inherits a refreshed tail. Changing it resets generated, unapproved scenes.
   const refineOn = !!s.refine?.enabled;
-  const refineButton = bulkButton("이어받기 보정", `${refineOn ? "켜짐" : "꺼짐"} — 장면 2부터, 생성한 장면을 한 번 더 짧게 샘플링(${s.refine?.steps ?? 5}스텝 · denoise ${s.refine?.denoise ?? 0.55})해서 장면을 이어 갈수록 인물이 뭉개지는 것을 줄입니다. 앞 장면에서 이어받은 구간은 그대로 두고 그 뒤로 서서히 보정본으로 바뀌며, 소리는 원래 것을 씁니다. 장면마다 샘플링이 그만큼 늘어나고 배경이 조금 바뀔 수 있습니다. 바꾸면 승인하지 않은 생성 장면은 다시 만듭니다. 누르면 ${refineOn ? "끕니다" : "켭니다"}.`, async () => {
+  const refineButton = bulkButton("이어받기 보정", `${refineOn ? "켜짐" : "꺼짐"} — 장면 2부터, 생성한 장면을 한 번 더 짧게 샘플링(${s.refine?.mode === "last_step" ? "마지막 1스텝" : `${s.refine?.steps ?? 5}스텝 · denoise ${s.refine?.denoise ?? 0.55}`}${s.refine?.subject ? " · 인물만" : ""})해서 장면을 이어 갈수록 인물이 뭉개지는 것을 줄입니다. 앞 장면에서 이어받은 구간은 그대로 두고 그 뒤로 서서히 보정본으로 바뀌며, 소리는 원래 것을 씁니다. 장면마다 샘플링이 그만큼 늘어나고 배경이 조금 바뀔 수 있습니다. 바꾸면 승인하지 않은 생성 장면은 다시 만듭니다. 누르면 ${refineOn ? "끕니다" : "켭니다"}.`, async () => {
     s.refine = { ...(s.refine || {}), enabled: !refineOn, steps: s.refine?.steps ?? 5, denoise: s.refine?.denoise ?? 0.55 };
     const reset = await rt.invalidateUnapproved?.();
     return (s.refine.enabled ? "이어받기 보정 켬" : "이어받기 보정 끔") + (reset ? " · 승인하지 않은 생성 장면을 다시 만들도록 초기화했습니다." : "");
   }, labGroup);
   refineButton.setAttribute("aria-pressed", String(refineOn));
   refineButton.className = "dl-switch" + (refineOn ? " on" : "");
-  // Steps / denoise of the refine resample (engine clamps to 1-20 and 0.05-1.0). A change resets
-  // generated, unapproved scenes like the switch does.
-  const refineField = (label, key, fallback, min, max, step, tip) => {
+  // Refine options (engine clamps them). A change resets generated, unapproved scenes like the switch does.
+  const lastStep = s.refine?.mode === "last_step";
+  const setRefine = async (key, value, label) => {
+    s.refine = { enabled: !!s.refine?.enabled, steps: s.refine?.steps ?? 5, denoise: s.refine?.denoise ?? 0.55, ...(s.refine || {}), [key]: value };
+    const reset = s.refine.enabled && await rt.invalidateUnapproved?.();
+    rt.message = `이어받기 보정 ${label}` + (reset ? " · 승인하지 않은 생성 장면을 다시 만들도록 초기화했습니다." : "");
+    save(); refresh();
+  };
+  const mode = element("select", null, labGroup);
+  mode.title = "다시 그리는 방식. 「denoise」: 아래 스텝·denoise로 다시 샘플링(LongTakeNoCuts 기본, 열화를 많이 털어내지만 동작·배경이 더 바뀜). "
+    + "「마지막 1스텝」: 본 생성 스케줄의 마지막 1스텝만 다시(NikoDemon80 방식, 얼굴·배경·색이 가장 덜 바뀌고 빠름, 고정 카메라에 권장).";
+  for (const [value, text] of [["denoise", "denoise"], ["last_step", "마지막 1스텝"]]) element("option", text, mode).value = value;
+  mode.value = lastStep ? "last_step" : "denoise";
+  mode.disabled = rt.busy || rt.running;
+  mode.onchange = () => setRefine("mode", mode.value, `방식 ${mode.value === "last_step" ? "마지막 1스텝" : "denoise"}`);
+  const refineField = (label, key, fallback, min, max, step, tip, off = false) => {
     element("span", label, labGroup).className = "dl-tlabel";
     const input = element("input", null, labGroup);
     Object.assign(input, { type: "number", min, max, step, value: s.refine?.[key] ?? fallback, title: tip });
     input.style.cssText = "width:62px;padding:4px 6px!important";
-    input.disabled = rt.busy || rt.running;
+    input.disabled = rt.busy || rt.running || off;
     input.onchange = async () => {
       const value = Math.min(max, Math.max(min, Number(input.value) || fallback));
       if (value === (s.refine?.[key] ?? fallback)) { input.value = value; return; }
-      s.refine = { enabled: !!s.refine?.enabled, steps: s.refine?.steps ?? 5, denoise: s.refine?.denoise ?? 0.55, [key]: value };
-      const reset = s.refine.enabled && await rt.invalidateUnapproved?.();
-      rt.message = `이어받기 보정 ${label} ${value}` + (reset ? " · 승인하지 않은 생성 장면을 다시 만들도록 초기화했습니다." : "");
-      save(); refresh();
+      await setRefine(key, value, `${label} ${value}`);
     };
   };
-  refineField("스텝", "steps", 5, 1, 20, 1, "이어받기 보정의 다시 그리기 스텝 수 (1~20, 기본 5). 늘리면 더 깨끗해지지만 장면마다 시간이 늘어납니다.");
-  refineField("denoise", "denoise", 0.55, 0.05, 1, 0.05, "이어받기 보정의 세기 (0.05~1.0, 기본 0.55). 높이면 열화를 더 털어내지만 동작·배경이 더 많이 바뀝니다.");
+  const unused = "「마지막 1스텝」 방식에서는 쓰지 않습니다.";
+  refineField("스텝", "steps", 5, 1, 20, 1, "이어받기 보정의 다시 그리기 스텝 수 (1~20, 기본 5). 늘리면 더 깨끗해지지만 장면마다 시간이 늘어납니다." + (lastStep ? " " + unused : ""), lastStep);
+  refineField("denoise", "denoise", 0.55, 0.05, 1, 0.05, "이어받기 보정의 세기 (0.05~1.0, 기본 0.55). 높이면 열화를 더 털어내지만 동작·배경이 더 많이 바뀝니다." + (lastStep ? " " + unused : ""), lastStep);
+  refineField("섞기", "blend_frames", 22, 1, 120, 1, "이어받은 구간이 끝난 뒤 몇 프레임에 걸쳐 원본에서 보정본으로 바꿀지 (1~120, 기본 22 = 22→44프레임). "
+    + "LongTakeNoCuts v02는 8(22→30). 짧으면 보정이 빨리 적용되고, 길면 바뀌는 게 덜 보입니다.");
+  const subjectOn = !!s.refine?.subject;
+  const subject = bulkButton("인물만", `${subjectOn ? "켜짐" : "꺼짐"} — SAM3로 대상(오른쪽 칸, 기본 main subject)을 찾아 그 부분만 다시 그리고 배경은 생성된 그대로 둡니다(LongTakeNoCuts v02). `
+    + "장면마다 디코딩과 SAM3 검출이 더 붙습니다. 대상을 못 찾으면 화면 전체를 보정합니다. 누르면 " + (subjectOn ? "끕니다." : "켭니다."), async () => {
+    await setRefine("subject", !subjectOn, subjectOn ? "인물만 끔" : "인물만 켬");
+    return rt.message;
+  }, labGroup);
+  subject.setAttribute("aria-pressed", String(subjectOn));
+  subject.className = "dl-switch" + (subjectOn ? " on" : "");
+  const target = element("input", null, labGroup);
+  Object.assign(target, { type: "text", value: s.refine?.subject_prompt || "main subject",
+    title: "「인물만」에서 SAM3가 찾을 대상 (영어, 예: main subject, woman, girl with red hair)" });
+  target.style.cssText = "width:110px;padding:4px 6px!important";
+  target.disabled = rt.busy || rt.running || !subjectOn;
+  target.onchange = async () => {
+    const value = target.value.trim() || "main subject";
+    if (value === (s.refine?.subject_prompt || "main subject")) { target.value = value; return; }
+    await setRefine("subject_prompt", value, `대상 「${value}」`);
+  };
   title.append(clearButton); // destructive action last, at the far right
 
   const preview = rt.preview || s.last_preview?.video;

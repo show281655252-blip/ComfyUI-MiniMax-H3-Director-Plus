@@ -5352,7 +5352,8 @@ class MiniMaxH3Extender:
                                         f"Refine clip {i + 1}/{len(clips)}")
                 sampled, refine_report = director_refine.refine(
                     clip_model, base_positive, sampled, cfg["seed"], str(sampler_name),
-                    frame_count, trim_frames, long_refine, _sample_h3)
+                    frame_count, trim_frames, long_refine, _sample_h3,
+                    sigmas=kwargs.get("sigmas"), vae=vae)
                 print(f"H3 Extender: Clip {i + 1} refine: {refine_report}")
 
             derope = kwargs.get("director_derope")
