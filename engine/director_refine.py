@@ -35,7 +35,7 @@ def settings(value):
     """long_video.refine from the scene timeline -> engine config, or None when off."""
     if not isinstance(value, dict) or not value.get("enabled"):
         return None
-    steps = max(1, min(20, int(value.get("steps", 5))))
+    steps = max(1, min(20, int(value.get("steps", 3))))
     denoise = max(0.05, min(1.0, float(value.get("denoise", 0.55))))
     blend = max(1, min(120, int(value.get("blend_frames", 0) or 0))) if value.get("blend_frames") else None
     prompt = str(value.get("subject_prompt") or "").strip() or DEFAULT_PROMPT

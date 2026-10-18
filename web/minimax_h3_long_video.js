@@ -600,8 +600,13 @@ export function renderLongVideo(node, state, emit) {
   // Experimental (xyzDist/H3-LongTakeNoCuts idea): resample each continued scene at a low denoise
   // so the next scene inherits a refreshed tail. Changing it resets generated, unapproved scenes.
   const refineOn = !!s.refine?.enabled;
-  const refineButton = bulkButton("이어받기 보정", `${refineOn ? "켜짐" : "꺼짐"} — 장면 2부터, 생성한 장면을 한 번 더 짧게 샘플링(${s.refine?.steps ?? 5}스텝 · denoise ${s.refine?.denoise ?? 0.55}${s.refine?.subject ? " · 인물만" : ""})해서 장면을 이어 갈수록 인물이 뭉개지는 것을 줄입니다. 앞 장면에서 이어받은 구간은 그대로 두고 그 뒤로 서서히 보정본으로 바뀌며, 소리는 원래 것을 씁니다. 장면마다 샘플링이 그만큼 늘어나고 배경이 조금 바뀔 수 있습니다. 바꾸면 승인하지 않은 생성 장면은 다시 만듭니다. 누르면 ${refineOn ? "끕니다" : "켭니다"}.`, async () => {
-    s.refine = { ...(s.refine || {}), enabled: !refineOn, steps: s.refine?.steps ?? 5, denoise: s.refine?.denoise ?? 0.55 };
+  // Defaults for a refine switched on for the first time (LongTakeNoCuts v02: 3 steps, blend 22->30).
+  // Settings saved before keep their values; a saved refine without blend_frames blends over the
+  // context length (22->44), so it is shown as 22.
+  const REFINE_NEW = { steps: 3, denoise: 0.55, blend_frames: 8 };
+  const refineCur = s.refine ? { steps: s.refine.steps ?? 5, denoise: s.refine.denoise ?? 0.55, blend_frames: s.refine.blend_frames ?? 22 } : REFINE_NEW;
+  const refineButton = bulkButton("이어받기 보정", `${refineOn ? "켜짐" : "꺼짐"} — 장면 2부터, 생성한 장면을 한 번 더 짧게 샘플링(${refineCur.steps}스텝 · denoise ${refineCur.denoise} · 섞기 ${refineCur.blend_frames}${s.refine?.subject ? " · 인물만" : ""})해서 장면을 이어 갈수록 인물이 뭉개지는 것을 줄입니다. 앞 장면에서 이어받은 구간은 그대로 두고 그 뒤로 서서히 보정본으로 바뀌며, 소리는 원래 것을 씁니다. 장면마다 샘플링이 그만큼 늘어나고 배경이 조금 바뀔 수 있습니다. 바꾸면 승인하지 않은 생성 장면은 다시 만듭니다. 누르면 ${refineOn ? "끕니다" : "켭니다"}.`, async () => {
+    s.refine = s.refine ? { ...s.refine, enabled: !refineOn } : { enabled: true, ...REFINE_NEW };
     const reset = await rt.invalidateUnapproved?.();
     return (s.refine.enabled ? "이어받기 보정 켬" : "이어받기 보정 끔") + (reset ? " · 승인하지 않은 생성 장면을 다시 만들도록 초기화했습니다." : "");
   }, labGroup);
@@ -609,12 +614,13 @@ export function renderLongVideo(node, state, emit) {
   refineButton.className = "dl-switch" + (refineOn ? " on" : "");
   // Refine options (engine clamps them). A change resets generated, unapproved scenes like the switch does.
   const setRefine = async (key, value, label) => {
-    s.refine = { enabled: !!s.refine?.enabled, steps: s.refine?.steps ?? 5, denoise: s.refine?.denoise ?? 0.55, ...(s.refine || {}), [key]: value };
+    s.refine = { ...(s.refine || REFINE_NEW), enabled: !!s.refine?.enabled, [key]: value };
     const reset = s.refine.enabled && await rt.invalidateUnapproved?.();
     rt.message = `이어받기 보정 ${label}` + (reset ? " · 승인하지 않은 생성 장면을 다시 만들도록 초기화했습니다." : "");
     save(); refresh();
   };
-  const refineField = (label, key, fallback, min, max, step, tip) => {
+  const refineField = (label, key, min, max, step, tip) => {
+    const fallback = refineCur[key];
     element("span", label, labGroup).className = "dl-tlabel";
     const input = element("input", null, labGroup);
     Object.assign(input, { type: "number", min, max, step, value: s.refine?.[key] ?? fallback, title: tip });
@@ -626,10 +632,10 @@ export function renderLongVideo(node, state, emit) {
       await setRefine(key, value, `${label} ${value}`);
     };
   };
-  refineField("스텝", "steps", 5, 1, 20, 1, "이어받기 보정의 다시 그리기 스텝 수 (1~20, 기본 5). 늘리면 더 깨끗해지지만 장면마다 시간이 늘어납니다.");
-  refineField("denoise", "denoise", 0.55, 0.05, 1, 0.05, "이어받기 보정의 세기 (0.05~1.0, 기본 0.55). 높이면 열화를 더 털어내지만 동작·배경이 더 많이 바뀝니다.");
-  refineField("섞기", "blend_frames", 22, 1, 120, 1, "이어받은 구간이 끝난 뒤 몇 프레임에 걸쳐 원본에서 보정본으로 바꿀지 (1~120, 기본 22 = 22→44프레임). "
-    + "LongTakeNoCuts v02는 8(22→30). 짧으면 보정이 빨리 적용되고, 길면 바뀌는 게 덜 보입니다.");
+  refineField("스텝", "steps", 1, 20, 1, "이어받기 보정의 다시 그리기 스텝 수 (1~20, 기본 3 — LongTakeNoCuts v02). 늘리면 더 깨끗해지지만 장면마다 시간이 늘어납니다.");
+  refineField("denoise", "denoise", 0.05, 1, 0.05, "이어받기 보정의 세기 (0.05~1.0, 기본 0.55). 높이면 열화를 더 털어내지만 동작·배경이 더 많이 바뀝니다.");
+  refineField("섞기", "blend_frames", 1, 120, 1, "이어받은 구간이 끝난 뒤 몇 프레임에 걸쳐 원본에서 보정본으로 바꿀지 (1~120, 기본 8 = 22→30프레임, LongTakeNoCuts v02). "
+    + "예전 기본은 22(22→44). 짧으면 보정이 빨리 적용되고, 길면 바뀌는 게 덜 보입니다.");
   const subjectOn = !!s.refine?.subject;
   const subject = bulkButton("인물만", `${subjectOn ? "켜짐" : "꺼짐"} — SAM3로 대상(오른쪽 칸, 기본 main subject)을 찾아 그 부분만 다시 그리고 배경은 생성된 그대로 둡니다(LongTakeNoCuts v02). `
     + "장면마다 디코딩과 SAM3 검출이 더 붙습니다. 대상을 못 찾으면 화면 전체를 보정합니다. 누르면 " + (subjectOn ? "끕니다." : "켭니다."), async () => {
