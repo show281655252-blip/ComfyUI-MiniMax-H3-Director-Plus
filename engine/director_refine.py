@@ -10,12 +10,8 @@ inherited-context guide (so the degraded tail is not pinned again) and its own n
 (scene seed + 1). The inherited context frames stay as generated (the seam keeps matching
 the previous scene) and the next scene inherits the refined tail. Audio is kept from the
 original sample. The first scene has no inherited context and is left as is.
-
-Resample modes:
-- "denoise": a few steps from `denoise` (the author's 0.5-0.6).
-- "last_step": only the main schedule's last step again (NikoDemon80's tip: with H3's shift
-  12, denoise 0.55 restarts near sigma 0.94 and redraws almost everything; one low-sigma step
-  keeps the face, background and colour while still refreshing the latent).
+(A "last step only" mode was tried on 2026-10-18 and removed: on a locked-off 4-scene test it
+barely slowed the degradation and did not stop the colour drift.)
 
 Subject mask (LongTakeNoCuts v02): SAM3 finds the subject ("main subject" by default) on the
 decoded scene; the mask is grown and feathered, ramps in after the context frames, and goes to
@@ -27,7 +23,6 @@ import nodes
 import torch
 import torch.nn.functional as F
 
-MODES = ("denoise", "last_step")
 DEFAULT_PROMPT = "main subject"
 SAM3_NAME = "sam3.1_multiplex_fp16"
 MASK_GROW = 5        # pixels, like GrowMaskWithBlur expand 5 in the author's workflow
@@ -42,10 +37,9 @@ def settings(value):
         return None
     steps = max(1, min(20, int(value.get("steps", 5))))
     denoise = max(0.05, min(1.0, float(value.get("denoise", 0.55))))
-    mode = value.get("mode") if value.get("mode") in MODES else "denoise"
     blend = max(1, min(120, int(value.get("blend_frames", 0) or 0))) if value.get("blend_frames") else None
     prompt = str(value.get("subject_prompt") or "").strip() or DEFAULT_PROMPT
-    return {"version": 2, "steps": steps, "denoise": denoise, "mode": mode,
+    return {"version": 2, "steps": steps, "denoise": denoise,
             "blend_frames": blend, "subject": bool(value.get("subject")), "subject_prompt": prompt}
 
 
@@ -103,9 +97,9 @@ def subject_mask(vae, video, pixel_frames, trim, prompt):
 
 
 def refine(model, base_positive, sampled, seed, sampler_name, pixel_frames, trim_frames, config, sample,
-           sigmas=None, vae=None):
+           vae=None):
     """Return (latent, report). base_positive: scene conditioning before Motion Context.
-    `sample` is the engine's _sample_h3; `sigmas` the scene's main schedule (for "last_step")."""
+    `sample` is the engine's _sample_h3; `vae` decodes the scene for the subject mask."""
     trim = int(trim_frames or 0)
     if trim <= 0:
         return sampled, "skipped (no inherited context)"
@@ -125,16 +119,9 @@ def refine(model, base_positive, sampled, seed, sampler_name, pixel_frames, trim
                 mask.to(video.device, torch.float32), torch.ones_like(audio, dtype=torch.float32)))
             notes.append(f"subject \"{config['subject_prompt']}\" mask {coverage * 100:.0f}% of frame")
 
-    if config.get("mode") == "last_step":
-        if sigmas is None or len(sigmas) < 2:
-            raise ValueError("Director 이어받기 보정: 「마지막 1스텝」에 쓸 본 생성 스케줄이 없습니다.")
-        out = sample(model, base_positive, source, int(seed) + 1, sampler_name, "simple", 1, 1.0,
-                     sigmas=sigmas[-2:])
-        how = f"last step (sigma {float(sigmas[-2]):.3f})"
-    else:
-        out = sample(model, base_positive, source, int(seed) + 1, sampler_name, "simple",
-                     config["steps"], config["denoise"])
-        how = f"{config['steps']} steps, denoise {config['denoise']:.2f}"
+    out = sample(model, base_positive, source, int(seed) + 1, sampler_name, "simple",
+                 config["steps"], config["denoise"])
+    how = f"{config['steps']} steps, denoise {config['denoise']:.2f}"
     refined = out["samples"].unbind()[0].to(video.device, video.dtype)
     if refined.shape != video.shape:
         raise ValueError("Director refine: video latent layout changed.")
